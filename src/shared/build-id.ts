@@ -1,0 +1,1 @@
+export const EXTENSION_BUILD_ID = __AI_CHAT_MEMORY_BUILD_ID__

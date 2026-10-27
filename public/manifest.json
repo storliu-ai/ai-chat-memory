@@ -1,0 +1,63 @@
+{
+  "manifest_version": 3,
+  "name": "AI Chat Memory",
+  "version": "0.5.73",
+  "description": "自动保存并管理你浏览过的 ChatGPT、Gemini 和 DeepSeek 对话，所有数据仅保存在本机。",
+  "minimum_chrome_version": "118",
+  "permissions": ["debugger"],
+  "host_permissions": [
+    "https://lh3.googleusercontent.com/*",
+    "https://lh3.google.com/*",
+    "https://*.oaiusercontent.com/*",
+    "https://images.openai.com/*"
+  ],
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "打开 AI Chat Memory",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://gemini.google.com/*",
+        "https://chat.deepseek.com/*"
+      ],
+      "js": [
+        "content/content-script.js"
+      ],
+      "run_at": "document_idle",
+      "world": "ISOLATED"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "panel.html",
+        "image-reader.html"
+      ],
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://gemini.google.com/*",
+        "https://chat.deepseek.com/*"
+      ]
+    }
+  ]
+}

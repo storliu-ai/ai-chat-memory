@@ -1,0 +1,89 @@
+# Dependencies and generated extension/build output (never commit)
+node_modules/
+/dist/
+/dist-ssr/
+/.dist-build/
+*.tsbuildinfo
+*.zip
+*.zip.next-*
+
+# Internal plans, audits, browser evidence and local research (never commit)
+/doc/
+/docs/
+/plan/
+/plans/
+/IMPLEMENTATION_PLAN.md
+/*_PLAN.md
+/*-plan.md
+*.local
+*.local.*
+*.har
+
+# Machine-specific agent/editor configuration and credentials (never commit)
+/.codex/
+/.agents/
+/.aws/
+.env
+.env.*
+!.env.example
+!.env.sample
+.ssh/
+id_rsa*
+id_ed25519*
+id_ecdsa*
+*.pem
+*.key
+*.pub
+*.p12
+*.pfx
+*.jks
+*.keystore
+.npmrc
+.netrc
+credentials.json
+secrets.json
+
+# Real browser/account data, conversation exports and captured responses
+captures/
+recordings/
+conversation-exports/
+browser-data/
+*.sqlite
+*.sqlite3
+*.db
+*.db-wal
+*.db-shm
+*.dump
+*.pcap
+*.pcapng
+
+# Logs, caches and verification artifacts
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+.cache/
+.vite/
+coverage/
+playwright-report/
+test-results/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Keep source assets, package-lock.json, build/verification scripts, READMEs,
+# PRIVACY.md, ARCHITECTURE.md, AGENTS.md, LICENSE, COPYRIGHT, THIRD_PARTY_NOTICES
+# SOURCES.md and public contribution/security/changelog/licensing policies for an
+# independent public checkout and licensed distribution.

@@ -1,0 +1,20 @@
+AI Chat Memory
+Copyright (C) 2026 AI Chat Memory authors and contributors.
+
+Except for files with their own third-party notices, the original AI Chat Memory
+source code and accompanying project documentation are licensed under the GNU
+General Public License, version 3 only (SPDX-License-Identifier: GPL-3.0-only).
+See LICENSE for the complete terms.
+
+You may use, modify and redistribute the covered work, including commercially,
+under those terms without seeking separate commercial approval. Redistribution
+must preserve applicable copyright and license notices; modified versions must
+identify their changes and provide Corresponding Source as required by the GPL.
+The software comes without warranty to the extent permitted by law.
+
+Individual copyright holders retain their rights. This collective project
+attribution does not assign their copyright or imply endorsement of derivatives.
+Public maintainer: storliu (https://github.com/storliu-ai).
+Canonical repository: https://github.com/storliu-ai/ai-chat-memory.
+
+Third-party dependencies retain their own licenses. See THIRD_PARTY_NOTICES.

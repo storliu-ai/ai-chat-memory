@@ -1,0 +1,193 @@
+# AI Chat Memory — 隐私政策 / Privacy Policy
+
+最近更新 / Last updated: 2026-10-27
+
+[中文](#中文) | [English](#english)
+
+## 中文
+
+### 适用范围
+
+本政策适用于 AI Chat Memory 浏览器扩展，说明它如何处理用户数据。扩展的唯一用途是按用户设置，将当前支持的 AI 对话保存到本机，并提供查看、检索、整理、附件保存、导入导出及用户授权的目录镜像。
+
+本项目是独立工具，与 OpenAI、Google 和 DeepSeek 无官方隶属关系。本政策不替代这些网站、浏览器、应用商店或你选择的文件同步服务各自的隐私政策。
+
+### 处理哪些数据，以及为什么处理
+
+对话数据：当前打开对话的标题、正文、角色、原页面地址、平台、对话与消息标识、顺序，以及页面真正暴露的消息时间。仅在相关设置或明确采集操作允许时保存；不遍历账号的远程历史列表。
+
+账户与本地管理数据：页面显示的名称、可能显示的 Gemini 邮箱或账户槽位、用户手动填写的标签、重要标记、置顶证据、排除记录和附件权限，用于区分和管理本地记录，不用于身份画像或广告。
+
+附件数据：对话中渲染的图片、文件名、类型、大小、保存状态，以及在权限和大小限制内保存的文件副本。你手动选择的同名本地文件，仅用于补齐相应已有附件，不扫描电脑上的其他文件。
+
+设置与任务数据：自动保存和平台开关、采集偏好、手动粘贴的分享链接、界面设置、随机生成的本地环境标识、环境名称、用户选择的目录句柄，以及采集任务标识、标签页标识、进度、计数、结果和错误状态。环境标识用于隔离本地目录，不用于跨网站追踪。
+
+未发送草稿、待发送附件、编辑和生成状态仅用于判断接口采集是否可以安全刷新页面，不作为对话记录保存。搜索在本地执行，不上传搜索词。
+
+### 自动采集、手动采集和临时数据
+
+自动保存默认开启，首次自动收录默认仅限能可靠确认原生置顶状态的对话；已经保存的对话可根据设置继续更新。普通自动采集只读取当前渲染内容，不主动滚动或刷新页面。关闭自动保存会停止自动写入；侧边栏仍可能临时读取当前上下文以显示状态，手动采集仍可由你明确启动。
+
+ChatGPT 和 Gemini 的手动完整 DOM 采集可以滚动当前对话以读取虚拟列表。页面切换、身份不符或完整性无法核对时，不把结果当作完整保存。
+
+明确启动 ChatGPT 接口采集后，扩展通过 debugger 读取精确目标自然返回的响应。当前页模式会在最后检查草稿、附件、编辑和生成状态后受控刷新一次。扩展不调用或重放私有对话接口，不提取认证头、Cookie 值或令牌，也不持久化完整原始响应。
+
+原始响应和未确认候选仅在任务处理所需的内存中临时保留，不进入任务状态存储。普通保存须先通过身份和完整性校验；异常候选只有在来源身份仍安全绑定且你在发起侧边栏明确确认后，才以规范化文本保存并标记待补全，不替换已有匹配正文，也不复制新附件。取消、身份失效或后台重启会丢弃未确认候选。
+
+### 存放位置与保留期限
+
+主要存储为当前 Chrome 配置文件的 IndexedDB 数据库 AIChatMemoryDB。对话、附件副本、账户、设置和本地任务状态留在该配置文件中；其他配置文件不会自动获得访问。
+
+没有开发者服务器副本，也没有按日期自动删除所有记录的承诺。已保存数据通常保留到你删除、清空相关数据，或浏览器移除该扩展的存储为止。任务状态会按任务生命周期清理或保留有限的历史结果。
+
+扩展不对数据库、导出文件或共享目录文件增加自己的静态加密层。保护这些数据也依赖设备账户、磁盘和浏览器的安全措施；不要把明文导出或共享目录交给不可信的人。
+
+### 联网、分享链接与第三方
+
+扩展没有自建后端、遥测、广告、远程分析或远程代码服务，不会把对话、附件、账户标签、搜索词或日志自动上传给开发者。它不出售、出租用户数据，不把数据用于定向广告、信用评估或 AI 模型训练。
+
+按权限保存附件时，扩展可能通过 HTTPS 读取页面已经提供的资源地址。图片主机限定为 lh3.googleusercontent.com、lh3.google.com、*.oaiusercontent.com 和 images.openai.com；普通文件下载也受已渲染候选、授权及大小限制。请求可能使用浏览器已有的登录会话，资源提供方可按正常请求获得 IP 地址和请求元数据；扩展不读取 Cookie 值或将登录凭据另行发送给开发者。
+
+分享页采集只会打开你明确提供的单个 ChatGPT 分享地址。分享的创建和更新由你在网站上手动完成；链接的访问范围由 ChatGPT 决定，不能把分享链接视为扩展加密的私人存储。
+
+只有你主动导出、复制内容或授权目录镜像时，数据才由扩展写出该浏览器配置文件。若你将导出文件或共享目录放入云盘或发给他人，这些服务或接收者可能获得数据，其处理由你选择的渠道和相应政策决定。
+
+Codex 仅作为本项目开发辅助工具，不是扩展运行时服务。扩展不调用 Codex 或其他模型 API 来处理用户对话。
+
+### 权限及附件选择
+
+支持站点的内容脚本用于当前对话读取及浮动面板。debugger 权限仅用于你明确启动的 ChatGPT 接口采集或读取验证；其他普通自动更新不使用该权限。文件系统访问只针对你通过系统选择器明确授权的目录。
+
+图片保存默认开启，可按对话覆盖；普通文件需按对话授权。单个附件上限可选 1、2、5 或 10 MB，硬上限为 10 MB；每条对话附件解码后总量上限为 30 MB。权限关闭、读取失败或超过限制时，只保留适用的名称、状态等元数据。
+
+关闭图片或文件保存会停止相应的后续复制，不自动删除以前复制的附件。关闭自动保存或卸载扩展也不会删除你自己导出的文件。
+
+### 共享目录与导出
+
+共享目录是可选的同机文件镜像，不是开发者提供的云同步。每个环境写入自己的子目录；你授权并选择显示其他环境后，可以读取相应共享记录。目录文件可包含正文、账户标签和以编码形式保存的附件，拥有目录访问权的人也可能读取这些文件。
+
+Markdown 和 Markdown ZIP 用于阅读归档，不含附件二进制；版本 1 JSON 可备份和恢复对话、账户及已保存附件，不包含所有界面设置、排除记录、目录授权和本地分享链接偏好。
+
+你可以断开共享目录连接，扩展会移除自己的目录句柄并停止后续镜像；这不会删除磁盘上已经写出的文件，也不代表撤销其他程序或其他浏览器环境的目录权限。
+
+### 查看、导出、删除与停止处理
+
+你可以在管理器中查看、检索和导出本地记录，修改标签或权限，删除单条记录，或在设置中清空当前环境数据。删除本地对话也删除该记录内保存的附件；它不会删除 AI 网站上的原对话。
+
+清空当前环境会停止相关采集任务，清除对话、账户、排除记录、应用设置和本地分享偏好，再恢复默认设置。稳定环境身份与共享目录连接会保留，以便在授权有效时把当前环境镜像为空；默认自动保存会重新开启。如需停止后续自动写入，应再次关闭自动保存、禁用扩展或卸载。
+
+删除其他环境的共享记录会写入删除请求，来源环境在兼容版本再次运行且目录读写授权有效时，才会应用本地删除。因此不能承诺离线环境和外部副本立即全部消失。
+
+从浏览器移除扩展通常会移除它在该配置文件中的存储，但导出、共享目录、系统备份、其他配置文件以及网站上的原始数据需要分别处理。开发者没有可代你执行删除的远程对话数据库。
+
+### 日志、安全与主动反馈
+
+警告和错误可能显示在本机浏览器控制台；开发构建也可能显示调试日志。扩展没有自动日志上传或崩溃遥测。没有软件能保证设备遭入侵后数据仍安全，请谨慎处理包含私人对话的导出和截图。
+
+如果你主动报告问题或发送截图，维护者或你选择的反馈平台可能收到这些信息。请优先使用虚构对话，只提供排查必需的信息，不发送 Cookie、令牌、完整原始响应、真实邮箱或可访问私人对话的链接。
+
+### 有限用途声明
+
+AI Chat Memory 对用户数据的使用仅限于本政策披露的对话本地归档及相关用户功能，遵守 Chrome 网上应用店用户数据政策中的有限用途限制。不为广告、数据交易或无关画像而收集、转移或利用数据。
+
+本政策说明数据处理方式，不以查看文档替代所需的界面披露、用户选择或权限授权。
+
+### 政策更新与联系
+
+数据处理方式变化时会更新本政策和最近更新日期；需要额外披露或授权的变化，不以修改文档代替相关界面流程。
+
+维护者为 [storliu](https://github.com/storliu-ai)，项目仓库为 [storliu-ai/ai-chat-memory](https://github.com/storliu-ai/ai-chat-memory)。隐私问题可通过 [项目 Issue](https://github.com/storliu-ai/ai-chat-memory/issues/new) 联系维护者；涉及私人信息时，请只请求私密联系渠道，等待确认后再私下提供必要信息。专用私密隐私联系渠道尚待公布。请勿在公开反馈中发送私人对话、认证信息或其他个人数据。
+
+## English
+
+### Scope
+
+This policy applies to the AI Chat Memory browser extension and explains its handling of user data. Its single purpose is to archive supported AI conversations locally according to your settings, with viewing, search, organization, attachment copies, import/export, and an explicitly authorized directory mirror.
+
+This is an independent project with no official affiliation with OpenAI, Google, or DeepSeek. This policy does not replace the separate policies of those websites, your browser, an extension store, or any file synchronization service you choose.
+
+### Data processed and its purposes
+
+Conversation data: the open conversation's title, text, roles, source URL, platform, conversation/message identifiers, ordering, and genuine message times exposed by the page. Data is saved only when the relevant settings or an explicit capture action permit it; remote account history is not enumerated.
+
+Account and local management data: displayed names, a displayed Gemini email address or account slot where available, manually entered labels, importance, native pin evidence, exclusions, and attachment permissions. These distinguish and manage local records, not advertising profiles.
+
+Attachment data: rendered conversation images, filenames, types, sizes, save status, and file copies within permission and size limits. A same-named local file that you explicitly select is used only to supplement its existing attachment; other files on your computer are not scanned.
+
+Settings and task data: automatic-save/platform switches, capture preferences, pasted share links, display settings, a randomly generated local environment identifier, its name, a directory handle chosen by you, and capture/task/tab identifiers, progress, counts, results, and error status. Environment identifiers separate local directory mirrors and are not used for cross-site tracking.
+
+Unsent draft, pending attachment, editing, and generation states are checked only to decide whether a network capture can safely refresh the page. They are not saved as conversation records. Search runs locally and search terms are not uploaded.
+
+### Automatic capture, manual capture, and transient data
+
+Automatic saving is on by default, with first-time collection restricted by default to conversations with reliable native pin evidence. Saved records may continue updating according to settings. Ordinary automatic capture reads rendered content without actively scrolling or refreshing. Turning automatic saving off stops automatic writes; the sidebar may still read current context transiently to display status, and you can explicitly start manual capture.
+
+Manual complete DOM capture in ChatGPT and Gemini may scroll the current conversation to read virtualized windows. Navigation, identity mismatches, or unverified completeness are not reported as a complete save.
+
+Explicit ChatGPT network capture uses the debugger to read responses naturally returned for the exact target. Current-page mode performs one controlled refresh after a final draft, attachment, editing, and generation check. It does not call or replay private conversation APIs, extract authentication headers, cookie values, or tokens, or persist full raw responses.
+
+Raw responses and unconfirmed candidates are held transiently in memory for task processing, not in persisted task status. Ordinary saves require identity and completeness checks. An exceptional candidate is retained as normalized text only while safely identity-bound and after confirmation in the originating sidebar. It remains marked pending completion, does not replace existing matching text, and copies no new attachments. Cancellation, invalid identity, or a background restart discards unconfirmed candidates.
+
+### Storage and retention
+
+The primary store is the current Chrome profile's IndexedDB database, AIChatMemoryDB. Conversations, attachment copies, accounts, settings, and local task status remain in that profile; other profiles do not automatically gain access.
+
+There is no developer-server copy and no promise that all records automatically expire after a fixed period. Saved data generally remains until you delete it, clear the relevant data, or the browser removes the extension's storage. Task state is cleaned up through its lifecycle or retained as limited result history.
+
+The extension adds no application-level encryption at rest to its database, exports, or shared-directory files. Protection also depends on your device account, disk, and browser security. Do not give readable exports or shared directories to untrusted parties.
+
+### Network access, share links, and third parties
+
+The extension operates no backend, telemetry, advertising, remote analytics, or remote-code service. It does not automatically upload conversations, attachments, account labels, search terms, or logs to the developer. It does not sell or rent user data or use it for targeted advertising, credit assessment, or AI model training.
+
+When copying authorized attachments, the extension may read resource URLs already supplied by the page over HTTPS. Image hosts are limited to lh3.googleusercontent.com, lh3.google.com, *.oaiusercontent.com, and images.openai.com. Ordinary-file downloads are also gated by rendered candidates, permissions, and limits. Requests may use the browser's existing login session; resource providers may receive your IP address and normal request metadata. The extension does not read cookie values or separately send login credentials to the developer.
+
+Share-page capture opens only the single ChatGPT share URL that you explicitly supply. You create or update sharing manually on the website. ChatGPT controls link visibility; a share link is not private storage encrypted by the extension.
+
+The extension writes data outside that browser profile only when you explicitly export, copy content, or authorize a directory mirror. If you put exports or the shared directory in a cloud-sync folder or send them to someone, those services or recipients may receive the data under your chosen channel and its policies.
+
+Codex is a development aid for this project, not a runtime service. The extension does not call Codex or another model API to process user conversations.
+
+### Permissions and attachment choices
+
+Content scripts on supported sites read the current conversation and display the floating panel. The debugger permission is used only for ChatGPT network capture or reading probes that you explicitly start, not ordinary automatic updates. File-system access is limited to the directory you explicitly authorize through the system picker.
+
+Image saving is on by default with per-conversation overrides; ordinary files require per-conversation permission. The per-attachment limit is 1, 2, 5, or 10 MB with a 10 MB hard ceiling. Decoded attachments total at most 30 MB per conversation. Disabled permission, read failures, or limits leave applicable metadata such as names and status.
+
+Disabling image or file saving stops future copies but does not automatically delete earlier copies. Disabling automatic saving or uninstalling the extension does not delete files you exported yourself.
+
+### Shared directories and exports
+
+The shared directory is an optional same-machine file mirror, not a developer-operated cloud sync service. Each environment writes to its own subdirectory. After authorizing and selecting other environments for display, you can read their shared records. Directory files may contain text, account labels, and encoded saved attachments. Anyone else with directory access may also read them.
+
+Markdown and Markdown ZIP are readable archives without attachment binaries. Version-1 JSON can back up and restore conversations, accounts, and saved attachments, but not every display setting, exclusion, directory authorization, or local share-link preference.
+
+You can disconnect the directory. The extension removes its stored directory handle and stops subsequent mirroring. This does not delete files already written to disk or revoke another program's or browser environment's access.
+
+### Access, export, deletion, and stopping processing
+
+You can view, search, and export local records in the manager, change labels or permissions, delete individual records, or clear the current environment in Settings. Deleting a local conversation also deletes attachments stored in that record, not the original conversation on the AI website.
+
+Clearing the current environment stops related capture tasks, clears conversations, accounts, exclusions, application settings, and local share preferences, then restores defaults. The stable environment identity and directory connection remain so the environment can mirror its empty state when authorization is valid. Default automatic saving is enabled again; turn it off, disable, or uninstall the extension to stop subsequent automatic writes.
+
+Deleting another environment's shared record writes a deletion request. The source applies local deletion only when it next runs on a compatible version with directory read/write access. Offline environments and external copies cannot be guaranteed to disappear immediately.
+
+Removing the extension from the browser normally removes its storage in that profile. Exports, shared directories, system backups, other profiles, and original website data must be handled separately. The developer has no remote conversation database from which to delete your records.
+
+### Logs, security, and voluntary feedback
+
+Warnings and errors may appear in the local browser console, and development builds may show debug logs. The extension has no automatic log uploading or crash telemetry. No software can guarantee data safety after device compromise; handle exports and screenshots containing private conversations carefully.
+
+If you voluntarily report a problem or send screenshots, the maintainer or your chosen feedback platform may receive that information. Prefer synthetic conversations and the minimum information needed. Do not send cookies, tokens, full raw responses, real email addresses, or links that expose private conversations.
+
+### Limited Use statement
+
+AI Chat Memory uses user data only for local conversation archiving and related user-facing functions disclosed in this policy, in accordance with the Limited Use restrictions of the Chrome Web Store User Data Policy. It does not collect, transfer, or exploit data for advertising, data trading, or unrelated profiling.
+
+This policy describes data handling. Reading it does not replace required in-product disclosures, user choices, or permission authorizations.
+
+### Policy updates and contact
+
+Changes to data handling will be reflected in this policy and its last-updated date. Updating a document does not replace any additional in-product disclosure or authorization required by the change.
+
+The maintainer is [storliu](https://github.com/storliu-ai), and the project repository is [storliu-ai/ai-chat-memory](https://github.com/storliu-ai/ai-chat-memory). For privacy questions, contact the maintainer through a [project issue](https://github.com/storliu-ai/ai-chat-memory/issues/new). If personal information is involved, request a private contact channel first and wait for confirmation before sharing necessary details privately. A dedicated private privacy contact has not yet been published. Do not post private conversations, authentication information, or other personal data in public feedback.
