@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { verificationModule } from './load-verification-module.mjs'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { runInNewContext } from 'node:vm'
@@ -93,6 +94,7 @@ function createHarness({ onShareStatus = () => undefined, extractionMissing = fa
   runInNewContext(observerJavaScript, {
     exports: module.exports,
     require: (name) => {
+      if (name.includes('/gemini/')) return verificationModule(`src/adapters/gemini/${name.split('/').at(-1)}.ts`)
       assert.ok(name in dependencies, `Unexpected dependency: ${name}`)
       return dependencies[name]
     },

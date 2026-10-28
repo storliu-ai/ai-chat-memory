@@ -1,7 +1,5 @@
-import type { ChatGPTCaptureMode } from '../../shared/share-capture'
-
-export interface CaptureEndpointTarget { mode: ChatGPTCaptureMode; id: string }
-export type CaptureEndpoint = 'initial' | 'messages' | 'share'
+import type { CaptureEndpoint, CaptureEndpointTarget } from '../../shared/network-capture'
+export type { CaptureEndpoint, CaptureEndpointTarget } from '../../shared/network-capture'
 
 /** Exact target only. Queries are not logged or persisted and headers are never read. */
 export function matchChatGPTCaptureEndpoint(value: string, target: CaptureEndpointTarget): CaptureEndpoint | null {

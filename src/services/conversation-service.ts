@@ -93,6 +93,7 @@ function repositionAttachments(
   startIndex: number | null,
   sourceMessages: readonly ChatMessage[] | undefined,
   finalMessages: readonly ChatMessage[] | undefined,
+  requirePositionMatch = false,
 ): ConversationAttachment[] | undefined {
   if (attachments === undefined || startIndex === null) {
     return undefined
@@ -100,12 +101,19 @@ function repositionAttachments(
   return attachments.map((attachment) => {
     const source = sourceMessages?.[attachment.messageIndex ?? -1]
     const turnId = attachment.sourceTurnId ?? source?.sourceTurnId
-    const finalIndex = finalMessages?.findIndex((message) =>
+    let finalIndex = finalMessages?.findIndex((message) =>
       source?.sourceMessageId !== undefined
         ? message.sourceMessageId === source.sourceMessageId && message.role === source.role
         : turnId !== undefined && message.sourceTurnId === turnId && (source === undefined || message.role === source.role),
     ) ?? -1
+    if (requirePositionMatch && finalIndex >= 0 && source && !source.sourceMessageId && finalMessages?.[finalIndex].content !== source.content) finalIndex = -1
+    if (finalIndex < 0 && source) {
+      const exact = finalMessages?.flatMap((message, index) => message.role === source.role && message.content === source.content &&
+        (!source.sourceMessageId || !message.sourceMessageId || message.sourceMessageId === source.sourceMessageId) ? [index] : []) ?? []
+      if (exact.length === 1) finalIndex = exact[0]
+    }
     if (finalIndex >= 0) return { ...attachment, messageIndex: finalIndex }
+    if (requirePositionMatch && attachment.messageIndex !== undefined) throw new Error('已有附件无法与完整 DOM 历史唯一对应，已保留原记录；请使用接口采集或核对消息后重试')
     return attachment.messageIndex === undefined
       ? attachment
       : { ...attachment, messageIndex: attachment.messageIndex + startIndex }
@@ -198,8 +206,9 @@ async function getFilteredConversations(query: ConversationQuery = {}): Promise<
 export async function saveConversation(
   payload: ConversationSavePayload,
   saveMode: ConversationSaveMode = 'automatic',
+  authorizeDomShare?: () => Promise<boolean>,
 ): Promise<ConversationSaveResult | null> {
-  return saveConversationInternal(payload, saveMode)
+  return saveConversationInternal(payload, saveMode, undefined, undefined, authorizeDomShare)
 }
 
 /** Only the background network coordinator supplies this authority. It is not
@@ -207,8 +216,9 @@ export async function saveConversation(
 export async function saveVerifiedNetworkConversation(
   payload: ConversationSavePayload,
   authorize: () => Promise<boolean>,
+  legacyBindings?: readonly { previous: ChatMessage; sourceMessageId: string }[],
 ): Promise<ConversationSaveResult | null> {
-  return saveConversationInternal(payload, 'manual', authorize)
+  return saveConversationInternal(payload, 'manual', authorize, legacyBindings)
 }
 
 /** Called only for an owner-panel confirmation. Never gives provisional text
@@ -258,7 +268,10 @@ async function saveConversationInternal(
   payload: ConversationSavePayload,
   saveMode: ConversationSaveMode,
   authorize?: () => Promise<boolean>,
+  legacyBindings?: readonly { previous: ChatMessage; sourceMessageId: string }[],
+  authorizeDomShare?: () => Promise<boolean>,
 ): Promise<ConversationSaveResult | null> {
+  if (authorizeDomShare && !await authorizeDomShare()) throw new Error('分享 DOM 保存授权已撤销')
   if (authorize && !await authorize()) throw new Error('接口保存授权已撤销')
   if (payload.messages.length === 0) {
     throw new Error('Incomplete conversations are not saved')
@@ -276,7 +289,23 @@ async function saveConversationInternal(
     resolvedPayload.accountId,
     resolvedPayload.conversationId,
   )
-  const existing = await getConversation(id)
+  let existing = await getConversation(id)
+  if (authorize && resolvedPayload.platform === 'gemini' && existing && legacyBindings?.length) {
+    // These bindings come only from the worker after full native/display proof.
+    // Recheck exact previous text and identity against the latest local record.
+    const same = (left: ChatMessage, right: ChatMessage): boolean => left.role === right.role && left.content === right.content && left.sourceMessageId === right.sourceMessageId && left.sourceTurnId === right.sourceTurnId
+    existing = { ...existing, messages: existing.messages.map((message) => {
+      const matches = legacyBindings.filter((binding) => same(binding.previous, message))
+      if (matches.length !== 1 || existing!.messages.filter((candidate) => same(candidate, message)).length !== 1 || !resolvedPayload.messages.some((candidate) => candidate.sourceMessageId === matches[0].sourceMessageId && candidate.role === message.role)) return message
+      return { ...message, sourceMessageId: matches[0].sourceMessageId }
+    }) }
+    existing = { ...existing, attachments: existing.attachments?.map((attachment) => {
+      const previous = existing!.messages[attachment.messageIndex ?? -1]
+      const target = previous?.sourceMessageId ? resolvedPayload.messages.find((message) => message.sourceMessageId === previous.sourceMessageId && message.role === previous.role) : undefined
+      return target?.sourceTurnId && (attachment.sourceTurnId === undefined || attachment.sourceTurnId === previous?.sourceTurnId)
+        ? { ...attachment, sourceTurnId: target.sourceTurnId } : attachment
+    }) }
+  }
   const protectNetwork = !authorize && saveMode === 'automatic' && existing?.messages.some((message) => message.contentSource === 'network') === true
   const complete = authorize !== undefined || resolvedPayload.captureSnapshotComplete === true && !protectNetwork
   if (authorize && existing) {
@@ -342,6 +371,7 @@ async function saveConversationInternal(
         : messageMerge.existingStartIndex,
       existing?.messages,
       messages,
+      resolvedPayload.platform === 'gemini' && complete && !resolvedPayload.supplementOnly,
     )
   const incomingAttachments = repositionAttachments(
       resolvedPayload.attachments,
@@ -394,6 +424,7 @@ async function saveConversationInternal(
 
   if (existing !== null && existing.contentHash === contentHash) {
     if (authorize && !await authorize()) throw new Error('接口保存授权已撤销')
+    if (authorizeDomShare && !await authorizeDomShare()) throw new Error('分享 DOM 保存授权已撤销')
     if (saveMode === 'manual' || existingWithMetadata !== existing) {
       const saved = await putConversationWithExclusionPolicy(
         existingWithMetadata ?? existing,
@@ -431,6 +462,7 @@ async function saveConversationInternal(
   }
 
   if (authorize && !await authorize()) throw new Error('接口保存授权已撤销')
+  if (authorizeDomShare && !await authorizeDomShare()) throw new Error('分享 DOM 保存授权已撤销')
   const saved = await putConversationWithExclusionPolicy(conversation, saveMode)
   return saved === null ? null : { conversation: saved, changed: true }
 }
@@ -460,8 +492,9 @@ export async function hasSavedConversation(
 export async function getSavedConversationBySource(
   platform: Conversation['platform'],
   conversationId: string,
+  accountId?: string,
 ): Promise<Conversation | null> {
-  const conversations = await getConversationsBySource(platform, conversationId)
+  const conversations = (await getConversationsBySource(platform, conversationId)).filter((conversation) => accountId === undefined || conversation.accountId === accountId)
   const preferred = conversations.reduce<Conversation | null>(
     (current, candidate) => {
       if (current === null || candidate.updatedAt > current.updatedAt) {

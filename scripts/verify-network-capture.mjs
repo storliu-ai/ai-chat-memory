@@ -4,11 +4,13 @@ import { runInNewContext } from 'node:vm'
 import { webcrypto } from 'node:crypto'
 import { parseHTML } from 'linkedom'
 import ts from 'typescript'
+import { verificationModule } from './load-verification-module.mjs'
 
 function load(path, dependencies = {}, globals = {}) {
   const code = ts.transpileModule(readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2023 } }).outputText
   const exports = {}
   runInNewContext(code, { exports, URL, TextEncoder, TextDecoder, atob, crypto: webcrypto, ...globals, require(name) {
+    if (name.includes('/gemini/')) return verificationModule(`src/adapters/gemini/${name.split('/').at(-1)}.ts`, globals)
     assert.ok(name in dependencies, `Unexpected dependency ${name}`)
     return dependencies[name]
   } }, { filename: path })
@@ -360,7 +362,7 @@ function coordinatorHarness({ stored = [], ownership = true, saving = false } = 
       updateConversationFileAttachmentPermission: async () => savedRecord, updateConversationImageAttachmentPermission: async () => savedRecord,
     },
     '../services/validation': { isChatMessage: () => true, hasValidConversationAttachments: () => true },
-    '../utils/hash': { createContentHash: async () => 'a'.repeat(64) },
+    '../utils/hash': { createContentHash: async () => 'a'.repeat(64), createAccountId: async () => 'unknown' },
     './runtime-readiness': { getCaptureReadiness: async () => ({ ready: true }) },
     '../db/network-capture-jobs': { readNetworkCaptureJobs: async () => [...statuses.values()], putNetworkCaptureJob: async (status) => { statuses.set(status.originTabId, structuredClone(status)) }, deleteNetworkCaptureJob: async (id) => { statuses.delete(id) } },
     '../shared/build-id': { EXTENSION_BUILD_ID: 'test-build' }, '../shared/network-capture': shared, '../shared/share-capture': share,

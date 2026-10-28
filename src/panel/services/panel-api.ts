@@ -29,15 +29,15 @@ export function setChatGPTSaveMethod(chatgptSaveMethod: ChatGPTSaveMethod): Prom
   return sendRuntimeRequest({ type: RUNTIME_MESSAGE_TYPE.UPDATE_SETTINGS, settings: { chatgptSaveMethod } })
 }
 
-export function getConversationSaveMethod(conversationId: string): Promise<ChatGPTSaveMethod | null> {
-  return sendRuntimeRequest({ type: RUNTIME_MESSAGE_TYPE.GET_CONVERSATION_SAVE_METHOD, conversationId })
+export function getConversationSaveMethod(conversationId: string, platform: 'chatgpt' | 'gemini' = 'chatgpt'): Promise<ChatGPTSaveMethod | null> {
+  return sendRuntimeRequest({ type: RUNTIME_MESSAGE_TYPE.GET_CONVERSATION_SAVE_METHOD, conversationId, platform })
 }
 
-export function setConversationSaveMethod(conversationId: string, method: ChatGPTSaveMethod | null): Promise<ChatGPTSaveMethod | null> {
-  return sendRuntimeRequest({ type: RUNTIME_MESSAGE_TYPE.SET_CONVERSATION_SAVE_METHOD, conversationId, method })
+export function setConversationSaveMethod(conversationId: string, method: ChatGPTSaveMethod | null, platform: 'chatgpt' | 'gemini' = 'chatgpt'): Promise<ChatGPTSaveMethod | null> {
+  return sendRuntimeRequest({ type: RUNTIME_MESSAGE_TYPE.SET_CONVERSATION_SAVE_METHOD, conversationId, method, platform })
 }
 
-export function networkCaptureAction(conversationId: string, action: 'start' | 'status' | 'finish' | 'cancel' | 'open' | 'confirm', jobId?: string, options: Pick<NetworkCaptureRequest, 'mode' | 'shareUrl' | 'operation' | 'allowFiles' | 'saveImages'> = {}): Promise<NetworkCaptureResponse> {
+export function networkCaptureAction(conversationId: string, action: 'start' | 'status' | 'finish' | 'cancel' | 'open' | 'confirm', jobId?: string, options: Pick<NetworkCaptureRequest, 'platform' | 'mode' | 'shareUrl' | 'operation' | 'allowFiles' | 'saveImages'> = {}): Promise<NetworkCaptureResponse> {
   return sendRuntimeRequest({ type: RUNTIME_MESSAGE_TYPE.NETWORK_CAPTURE, contentScriptBuildId: EXTENSION_BUILD_ID, conversationId, action, jobId, method: 'network', ...options })
 }
 
@@ -45,24 +45,24 @@ export function setChatGPTCaptureMode(chatgptCaptureMode: ChatGPTCaptureMode): P
   return sendRuntimeRequest({ type: RUNTIME_MESSAGE_TYPE.UPDATE_SETTINGS, settings: { chatgptCaptureMode } })
 }
 
-export function getConversationCaptureMode(conversationId: string): Promise<ChatGPTCaptureMode | null> {
-  return sendRuntimeRequest({ type: RUNTIME_MESSAGE_TYPE.GET_CONVERSATION_CAPTURE_MODE, conversationId })
+export function getConversationCaptureMode(conversationId: string, platform: 'chatgpt' | 'gemini' = 'chatgpt'): Promise<ChatGPTCaptureMode | null> {
+  return sendRuntimeRequest({ type: RUNTIME_MESSAGE_TYPE.GET_CONVERSATION_CAPTURE_MODE, conversationId, platform })
 }
 
-export function setConversationCaptureMode(conversationId: string, mode: ChatGPTCaptureMode | null): Promise<ChatGPTCaptureMode | null> {
-  return sendRuntimeRequest({ type: RUNTIME_MESSAGE_TYPE.SET_CONVERSATION_CAPTURE_MODE, conversationId, mode })
+export function setConversationCaptureMode(conversationId: string, mode: ChatGPTCaptureMode | null, platform: 'chatgpt' | 'gemini' = 'chatgpt'): Promise<ChatGPTCaptureMode | null> {
+  return sendRuntimeRequest({ type: RUNTIME_MESSAGE_TYPE.SET_CONVERSATION_CAPTURE_MODE, conversationId, mode, platform })
 }
 
-export function shareCaptureAction(conversationId: string, action: 'status' | 'open' | 'cancel', jobId?: string): Promise<ShareCaptureResponse> {
-  return sendRuntimeRequest({ type: RUNTIME_MESSAGE_TYPE.SHARE_CAPTURE, contentScriptBuildId: EXTENSION_BUILD_ID, conversationId, action, jobId })
+export function shareCaptureAction(conversationId: string, action: 'status' | 'open' | 'cancel', jobId?: string, platform: 'chatgpt' | 'gemini' = 'chatgpt'): Promise<ShareCaptureResponse> {
+  return sendRuntimeRequest({ type: RUNTIME_MESSAGE_TYPE.SHARE_CAPTURE, contentScriptBuildId: EXTENSION_BUILD_ID, conversationId, action, jobId, platform })
 }
 
-export function getConversationShareLink(conversationId: string): Promise<string | null> {
-  return sendRuntimeRequest({ type: RUNTIME_MESSAGE_TYPE.GET_CONVERSATION_SHARE_LINK, conversationId })
+export function getConversationShareLink(conversationId: string, platform: 'chatgpt' | 'gemini' = 'chatgpt'): Promise<string | null> {
+  return sendRuntimeRequest({ type: RUNTIME_MESSAGE_TYPE.GET_CONVERSATION_SHARE_LINK, conversationId, platform })
 }
 
-export function setConversationShareLink(conversationId: string, url: string | null): Promise<string | null> {
-  return sendRuntimeRequest({ type: RUNTIME_MESSAGE_TYPE.SET_CONVERSATION_SHARE_LINK, conversationId, url })
+export function setConversationShareLink(conversationId: string, url: string | null, platform: 'chatgpt' | 'gemini' = 'chatgpt'): Promise<string | null> {
+  return sendRuntimeRequest({ type: RUNTIME_MESSAGE_TYPE.SET_CONVERSATION_SHARE_LINK, conversationId, url, platform })
 }
 
 export function getConversations(query: ConversationQuery): Promise<ConversationPage> {

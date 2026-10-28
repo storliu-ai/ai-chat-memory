@@ -83,7 +83,7 @@ import { isLocalAttachmentCopy } from '../shared/local-attachments'
 import { supplementLocalAttachment } from '../services/local-attachment-service'
 import { isPermittedRemoteImageUrl } from '../shared/remote-images'
 import { getCaptureReadiness } from './runtime-readiness'
-import { cancelShareCaptureJobs, handleShareCapture, handleShareTabNavigated, handleShareTabRemoved, initializeShareCaptureJobs, isShareSaveAuthorized } from './share-capture-coordinator'
+import { cancelShareCaptureJobs, handleShareCapture, handleShareTabNavigated, handleShareTabRemoved, initializeShareCaptureJobs, isShareSaveAuthorized, prepareShareSavePayload } from './share-capture-coordinator'
 import {
   EXTENSION_EVENT_SOURCE,
   type ConversationUpdatedExtensionEvent,
@@ -184,8 +184,8 @@ async function mirrorSafely(
 async function notifyConversationDeleted(
   event: Omit<ConversationDeletedContentEvent, 'source' | 'type'>,
 ): Promise<void> {
-  if (event.platform === 'chatgpt') await cancelShareCaptureJobs(event.conversationId)
-  if (event.platform === 'chatgpt') await cancelNetworkCaptureJobs(event.conversationId)
+  if (event.platform === 'chatgpt' || event.platform === 'gemini') await cancelShareCaptureJobs(event.conversationId, event.platform)
+  if (event.platform === 'chatgpt' || event.platform === 'gemini') await cancelNetworkCaptureJobs(event.conversationId, event.platform)
   try {
     const tabs = await chrome.tabs.query({})
     const message: ConversationDeletedContentEvent = {
@@ -224,7 +224,10 @@ async function dispatchRuntimeRequest(
       try {
         const response = await handleNetworkCapture(request, sender)
         if (request.action === 'commit' || request.action === 'attachments' || request.action === 'confirm') {
-          const saved = request.conversationId ? await getSavedConversationBySource('chatgpt', request.conversationId) : response.status ? await getSavedConversationBySource('chatgpt', response.status.conversationId) : null
+          const saved = response.savedConversationId ? await getConversationById(response.savedConversationId)
+            : request.platform === 'gemini' ? null
+              : request.conversationId ? await getSavedConversationBySource('chatgpt', request.conversationId)
+                : response.status ? await getSavedConversationBySource('chatgpt', response.status.conversationId) : null
           if (saved) {
             await mirrorSafely('network capture', async () => { await mirrorLocalConversation(saved); await mirrorLocalAccounts() })
             notifyConversationUpdated(saved.id)
@@ -235,33 +238,33 @@ async function dispatchRuntimeRequest(
       catch (error: unknown) { return runtimeFailure('INVALID_REQUEST', error instanceof Error ? error.message : '接口验证失败') }
     case RUNTIME_MESSAGE_TYPE.GET_CONVERSATION_SAVE_METHOD:
     case RUNTIME_MESSAGE_TYPE.SET_CONVERSATION_SAVE_METHOD:
-      if (!isNonEmptyString(request.conversationId) || request.conversationId.length > 256) return runtimeFailure('INVALID_REQUEST', 'Conversation ID is required')
-      if (request.type === RUNTIME_MESSAGE_TYPE.GET_CONVERSATION_SAVE_METHOD) return runtimeSuccess(await getConversationSaveMethod(request.conversationId))
-      if (isNetworkSavePaused('chatgpt', request.conversationId)) return runtimeFailure('INVALID_REQUEST', '请结束验证后再切换保存方式')
+      if (request.platform !== undefined && !['chatgpt', 'gemini'].includes(request.platform) || !isNonEmptyString(request.conversationId) || request.conversationId.length > 256) return runtimeFailure('INVALID_REQUEST', 'Conversation ID and supported platform are required')
+      if (request.type === RUNTIME_MESSAGE_TYPE.GET_CONVERSATION_SAVE_METHOD) return runtimeSuccess(await getConversationSaveMethod(request.conversationId, request.platform))
+      if (isNetworkSavePaused(request.platform ?? 'chatgpt', request.conversationId)) return runtimeFailure('INVALID_REQUEST', '请结束验证后再切换保存方式')
       if (request.method !== null && request.method !== 'dom' && request.method !== 'network') return runtimeFailure('INVALID_REQUEST', 'Invalid save method')
-      return runtimeSuccess(await setConversationSaveMethod(request.conversationId, request.method))
+      return runtimeSuccess(await setConversationSaveMethod(request.conversationId, request.method, request.platform))
     case RUNTIME_MESSAGE_TYPE.GET_CONVERSATION_SHARE_LINK:
     case RUNTIME_MESSAGE_TYPE.SET_CONVERSATION_SHARE_LINK:
-      if (!isNonEmptyString(request.conversationId) || request.conversationId.length > 256) return runtimeFailure('INVALID_REQUEST', 'Conversation ID is required')
-      if (request.type === RUNTIME_MESSAGE_TYPE.GET_CONVERSATION_SHARE_LINK) return runtimeSuccess(await getConversationShareLink(request.conversationId))
-      try { return runtimeSuccess(await setConversationShareLink(request.conversationId, request.url)) }
+      if (request.platform !== undefined && !['chatgpt', 'gemini'].includes(request.platform) || !isNonEmptyString(request.conversationId) || request.conversationId.length > 256) return runtimeFailure('INVALID_REQUEST', 'Conversation ID and supported platform are required')
+      if (request.type === RUNTIME_MESSAGE_TYPE.GET_CONVERSATION_SHARE_LINK) return runtimeSuccess(await getConversationShareLink(request.conversationId, request.platform))
+      try { return runtimeSuccess(await setConversationShareLink(request.conversationId, request.url, request.platform)) }
       catch { return runtimeFailure('INVALID_REQUEST', '分享链接格式无效或保存失败') }
     case RUNTIME_MESSAGE_TYPE.GET_CONVERSATION_CAPTURE_MODE:
     case RUNTIME_MESSAGE_TYPE.SET_CONVERSATION_CAPTURE_MODE:
-      if (!isNonEmptyString(request.conversationId) || request.conversationId.length > 256) {
+      if (request.platform !== undefined && !['chatgpt', 'gemini'].includes(request.platform) || !isNonEmptyString(request.conversationId) || request.conversationId.length > 256) {
         return runtimeFailure('INVALID_REQUEST', 'Conversation ID is required')
       }
       if (request.type === RUNTIME_MESSAGE_TYPE.GET_CONVERSATION_CAPTURE_MODE) {
-        return runtimeSuccess(await getConversationCaptureMode(request.conversationId))
+        return runtimeSuccess(await getConversationCaptureMode(request.conversationId, request.platform))
       }
-      if (isNetworkSavePaused('chatgpt', request.conversationId)) return runtimeFailure('INVALID_REQUEST', '请结束验证后再切换采集模式')
+      if (isNetworkSavePaused(request.platform ?? 'chatgpt', request.conversationId)) return runtimeFailure('INVALID_REQUEST', '请结束验证后再切换采集模式')
       if (request.mode !== null && request.mode !== 'conversation' && request.mode !== 'share') {
         return runtimeFailure('INVALID_REQUEST', 'Invalid capture mode')
       }
-      return runtimeSuccess(await setConversationCaptureMode(request.conversationId, request.mode))
+      return runtimeSuccess(await setConversationCaptureMode(request.conversationId, request.mode, request.platform))
 
     case RUNTIME_MESSAGE_TYPE.SHARE_CAPTURE: {
-      if (request.action === 'start' && isNetworkSavePaused('chatgpt', request.conversationId ?? '')) return runtimeFailure('INVALID_REQUEST', '请先结束接口验证')
+      if (request.action === 'start' && isNetworkSavePaused(request.platform ?? 'chatgpt', request.conversationId ?? '')) return runtimeFailure('INVALID_REQUEST', '请先结束接口验证')
       if (typeof request.contentScriptBuildId !== 'string' || !(await getCaptureReadiness(request.contentScriptBuildId)).ready) return runtimeFailure('EXTENSION_UNAVAILABLE', '请刷新原对话后重试分享采集')
       try { return runtimeSuccess(await handleShareCapture(request, sender)) }
       catch (error: unknown) { return runtimeFailure('INVALID_REQUEST', error instanceof Error ? error.message : '分享采集失败') }
@@ -291,7 +294,7 @@ async function dispatchRuntimeRequest(
         return runtimeFailure('INVALID_REQUEST', 'Invalid conversation payload')
       }
       if (isNetworkSavePaused(request.conversation.platform, request.conversation.conversationId)) return runtimeSuccess(null)
-      if (request.conversation.supplementOnly && (request.saveMode !== 'manual' || request.conversation.platform !== 'chatgpt' || !await isShareSaveAuthorized(sender, request.conversation.conversationId))) return runtimeFailure('INVALID_REQUEST', '分享补全必须绑定有效的原对话采集任务')
+      if (request.conversation.supplementOnly && (request.saveMode !== 'manual' || !['chatgpt', 'gemini'].includes(request.conversation.platform) || !await isShareSaveAuthorized(sender, request.conversation.conversationId, request.conversation.platform, request.conversation.accountId))) return runtimeFailure('INVALID_REQUEST', '分享补全必须绑定有效的原对话采集任务')
       if (
         request.saveMode !== undefined &&
         request.saveMode !== 'automatic' &&
@@ -300,9 +303,11 @@ async function dispatchRuntimeRequest(
         return runtimeFailure('INVALID_REQUEST', 'Invalid conversation save mode')
       }
       {
+        const payload = request.conversation.supplementOnly ? await prepareShareSavePayload(sender, request.conversation) : request.conversation
         const result = await saveConversation(
-          request.conversation,
+          payload,
           request.saveMode ?? 'automatic',
+          payload.supplementOnly ? () => isShareSaveAuthorized(sender, payload.conversationId, payload.platform, payload.accountId) : undefined,
         )
         if (result === null) {
           return runtimeSuccess(null)

@@ -37,6 +37,8 @@ import {
 } from './attachment-capture'
 import { canAutomaticallyCaptureConversation } from './auto-save-policy'
 import { normalizeChatGPTShareUrl, supplementShareCapture } from '../shared/share-capture'
+import { normalizeGeminiShareUrl } from '../adapters/gemini/capture-urls'
+import { alignGeminiDomShare, mergeGeminiDomShare, portableGeminiDomCapture } from '../adapters/gemini/dom-share'
 
 const EXTRACTION_DEBOUNCE_MS = 1_500
 const MAX_ACCUMULATED_CONVERSATIONS = 6
@@ -266,7 +268,8 @@ export class ConversationObserver {
   async saveWithShare(requestedConversationId: string | undefined, allowFiles: boolean | undefined, saveImages: boolean | undefined, shareUrl: string | undefined): Promise<ManualSaveResult> {
     const adapter = this.adapter
     const id = adapter?.getConversationId()
-    if (!adapter || adapter.platform !== 'chatgpt' || !id || id !== requestedConversationId || this.shareAbort !== null || this.completeCaptureInProgress || this.networkCapturePaused) return { ok: false, reason: 'not-conversation', message: '请在原 ChatGPT 对话中启动；已有任务时请先等待或取消' }
+    if (!adapter || !['chatgpt', 'gemini'].includes(adapter.platform) || !id || id !== requestedConversationId || this.shareAbort !== null || this.completeCaptureInProgress || this.networkCapturePaused) return { ok: false, reason: 'not-conversation', message: '请在原 ChatGPT 或 Gemini 对话中启动；已有任务时请先等待或取消' }
+    const platform = adapter.platform as 'chatgpt' | 'gemini'
     const abort = new AbortController()
     this.shareAbort = abort
     const generation = this.generation
@@ -274,11 +277,11 @@ export class ConversationObserver {
     let jobId: string | undefined
     let savedSuccessfully = false
     let readyToSave = false
-    const base = { type: RUNTIME_MESSAGE_TYPE.SHARE_CAPTURE, contentScriptBuildId: EXTENSION_BUILD_ID, conversationId: id } as const
+    const base = { type: RUNTIME_MESSAGE_TYPE.SHARE_CAPTURE, contentScriptBuildId: EXTENSION_BUILD_ID, conversationId: id, platform } as const
     try {
       if (!current()) throw new Error('采集已取消或原对话已切换')
-      const url = normalizeChatGPTShareUrl(shareUrl)
-      if (shareUrl?.trim() && !url) throw new Error('分享链接格式无效，请使用 https://chatgpt.com/share/ 开头的完整链接')
+      const url = platform === 'gemini' ? normalizeGeminiShareUrl(shareUrl) : normalizeChatGPTShareUrl(shareUrl)
+      if (shareUrl?.trim() && !url) throw new Error('分享链接格式无效，请使用对应平台的整条对话分享链接')
       if (!url) throw new Error('请手动创建或更新整条对话的分享，并在面板粘贴链接')
       if (!current()) throw new Error('采集已取消或原对话已切换')
       this.clearDebounce()
@@ -289,16 +292,16 @@ export class ConversationObserver {
       // capture. Preserve source identity without requiring a fresh full DOM
       // extraction: previously rendered messages or the saved copy can anchor
       // the result. The worker still checks the link against those messages.
-      const renderedSource = adapter.extractConversation()
-      let source: ExtractedConversation = (renderedSource ? this.accumulateExtractedConversation(renderedSource) : null)
-        ?? this.getObservedCapture('chatgpt', id)
+      const renderedSource = platform === 'gemini' ? adapter.extractDomShareConversation?.() ?? null : adapter.extractConversation()
+      let source: ExtractedConversation = (renderedSource ? platform === 'gemini' ? portableGeminiDomCapture(renderedSource) : this.accumulateExtractedConversation(renderedSource) : null)
+        ?? (platform === 'chatgpt' ? this.getObservedCapture(platform, id) : null)
         ?? {
-          platform: 'chatgpt', conversationId: id, url: location.href,
+          platform, conversationId: id, url: location.href,
           title: adapter.getTitle(), messages: adapter.getMessages(),
           accountIdentifier: adapter.getAccountIdentifier(), accountLabel: adapter.getAccountLabel(),
         }
-      if (source.platform !== 'chatgpt' || source.conversationId !== id) throw new Error('原对话已切换，请重新打开对应对话的面板')
-      if (source.messages.length === 0) {
+      if (source.platform !== platform || source.conversationId !== id) throw new Error('原对话已切换，请重新打开对应对话的面板')
+      if (source.messages.length === 0 && platform === 'chatgpt') {
         const local = await sendRuntimeRequest({ type: RUNTIME_MESSAGE_TYPE.GET_SAVED_CONVERSATION, platform: 'chatgpt', conversationId: id })
         if (!current()) throw new Error('采集已取消或原对话已切换')
         if (local?.platform === 'chatgpt' && local.conversationId === id && local.messages.length > 0) source = { ...source, title: local.title, messages: local.messages }
@@ -317,17 +320,20 @@ export class ConversationObserver {
         await waitForManualSaveRetry(1_000)
       }
       if (!current() || !capture) throw new Error('采集已取消或原对话已切换')
+      if (platform === 'gemini') capture = alignGeminiDomShare(source, portableGeminiDomCapture(capture))
       const accountIdentifier = adapter.getAccountIdentifier()
       if (accountIdentifier !== null) source = { ...source, accountIdentifier, accountLabel: adapter.getAccountLabel() }
       const saved = await this.queueConversationSave({
         trigger: 'manual', scheduledGeneration: generation, expectedConversationId: id, scheduledCaptureRevision: ++this.captureRevision,
         completeSnapshotVerified: true, manuallyAllowFiles: allowFiles, manuallySaveImages: saveImages,
-        extractedOverride: supplementShareCapture(source, capture),
+        extractedOverride: platform === 'gemini' ? mergeGeminiDomShare(source, capture) : supplementShareCapture(source, capture),
         supplementOnly: true, deferSyncStatus: true,
         supplementVerifiedMessageIds: capture.messages.flatMap((message) => message.sourceMessageId ? [message.sourceMessageId] : []),
       })
       if (!saved || !current()) throw new Error('分享已完整读取，但原对话保存未确认，请重试')
-      const verified = await sendRuntimeRequest({ type: RUNTIME_MESSAGE_TYPE.GET_SAVED_CONVERSATION, platform: 'chatgpt', conversationId: id })
+      const verified = platform === 'gemini'
+        ? await sendRuntimeRequest({ type: RUNTIME_MESSAGE_TYPE.GET_CONVERSATION, id: saved.id })
+        : await sendRuntimeRequest({ type: RUNTIME_MESSAGE_TYPE.GET_SAVED_CONVERSATION, platform, conversationId: id })
       if (!current() || !verified || verified.id !== saved.id || verified.contentHash !== saved.contentHash) throw new Error('保存后的本地副本已变化或任务已取消，请重新核对')
       const released = await sendRuntimeRequest({ ...base, action: 'release', jobId })
       if (released.status?.phase !== 'complete') throw new Error('任务已取消，未确认本次分享保存')
@@ -715,7 +721,7 @@ export class ConversationObserver {
           }
           this.notifyLiveStateChanged()
         }
-      }, () => this.shareAbort?.signal.aborted === true)
+      }, () => this.destroyed || expectedGeneration !== this.generation || this.adapter !== adapter || adapter.getConversationId() !== expectedConversationId || this.shareAbort?.signal.aborted === true)
       if (
         complete === null ||
         complete.conversationId !== expectedConversationId ||
@@ -794,6 +800,10 @@ export class ConversationObserver {
     } catch {
       return null
     }
+  }
+
+  getShareSourceCapture(): ExtractedConversation | null {
+    return this.adapter?.extractDomShareConversation?.() ?? this.adapter?.extractConversation() ?? null
   }
 
   getCurrentConversationContext(): HostConversationContext {

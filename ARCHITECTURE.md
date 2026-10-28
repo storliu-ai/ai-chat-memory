@@ -68,11 +68,11 @@ script must therefore be passive, read-only, and fail closed:
   that user's trusted native pin click—may advance the conversation's own scroll
   container so that its virtual list renders additional DOM; it does not request
   remote data or enumerate another conversation.
-  Explicit ChatGPT share capture additionally permits one extension-created
+  Explicit ChatGPT or Gemini share capture additionally permits one extension-created
   inactive tab for the exact manually supplied share URL. Its isolated-world
   content script may scroll and read rendered DOM solely for the source-bound
   capture task described below. No remote conversation enumeration is allowed.
-- Never enumerate or call conversation APIs. Explicit ChatGPT network-capture
+- Never enumerate or call conversation APIs. Explicit ChatGPT or Gemini network-capture
   jobs may read only naturally returned exact-target responses using the restricted
   background debugger transport described below; no request replay or private API
   calls are allowed. The other permitted network path is
@@ -210,8 +210,51 @@ copy them when the page's canvas or fetch is restricted by cross-origin rules.
 
 The observer is page-local update detection, not synchronization. A saved
 conversation is only rechecked when the user opens it again. The sole remote
-tab-opening exception is an explicit user-supplied ChatGPT share-capture job;
+tab-opening exception is an explicit user-supplied ChatGPT or Gemini share-capture job;
 automatic capture never opens or enumerates remote conversations.
+
+### Gemini network capture (0.5.74)
+
+The same explicit-task coordinator and sole debugger transport serve Gemini.
+Current-page mode binds the original account slot, rendered account hash,
+document and branch revision before one synchronously checked reload. Share
+mode owns one tab for the manually supplied canonical share. A public Google
+short link can first be expanded by a bounded credential-free GET, discarding
+the body and rejecting destinations other than a canonical Gemini share.
+This public-link resolver is the only additional fetch path.
+
+The adapter recognizes only natural POST batchexecute responses for history
+`hNvQHb` or public share `ujx1Bf`; request bodies and headers are never read.
+Gemini can cancel an HTTP-200 response after delivering the data, so the
+transport joins the buffered prefix and streamed byte chunks before fatal
+UTF-8 decoding. The adapter still requires complete length-framed JSON;
+arbitrary loading failures cannot authorize saving. Unsupported Chrome stream
+commands fail closed and suggest upgrading or choosing DOM capture.
+
+History proof requires one exact native conversation ID, unambiguous selected
+candidates, matching selected-parent links, a unique root, one connected branch
+and an observed terminal cursor (or a complete share snapshot bound to its route
+ID). A share's final pair must uniquely match the original rendered page;
+a shared ancestor alone cannot bind a divergent branch. DOM numeric indexes
+never substitute for native identities. Every ordered
+question and every assistant display/code block must agree before the worker
+assigns native identities and attachment positions. Layout-only differences
+in rich prompts retain the DOM text. Fenced and inline assistant code compare
+separately without lossy prose normalization. Only supported static display
+components are interpreted; hidden comments and action-query attributes are
+discarded, and unknown components stop saving. The native app can omit older
+action-only suggestion groups that the share viewer displays. A separate
+presentation may omit only those entire known groups; ordinary body/code and
+partially missing suggestion labels still fail comparison. Only the matching
+rendered presentation is archived. Private numeric response fields
+never become message timestamps.
+
+Verified native identities can bind uniquely matching legacy DOM messages only
+through a worker-owned argument rechecked against the latest stored text.
+Permissions, attachments, source times and manual metadata remain local. Gemini
+does not offer exceptional pending-candidate confirmation. Its controller has
+four choices: current DOM, share DOM, current network, share network. Preferences have
+Gemini-specific keys; existing ChatGPT keys/defaults remain compatible.
 
 ### ChatGPT network capture and saving
 
@@ -246,7 +289,7 @@ document ID as well as its isolated-world token.
 `network-debug-session.ts` is the sole debugger API owner. The manifest requests
 only `debugger` in addition to existing image hosts and uses Chrome 118 as the
 candidate minimum. The command allowlist is `Page.enable`, `Page.getFrameTree`,
-`Network.enable`, `Network.getResponseBody`. No runtime-supplied commands, JS
+`Network.enable`, `Network.getResponseBody`, `Network.streamResourceContent`. No runtime-supplied commands, JS
 execution, child sessions, request replay or authentication events are permitted.
 ChatGPT adapter functions restrict response reads to GET/JSON for the exact
 conversation/share endpoint; tab, main frame, loader and request ID must agree.
@@ -333,6 +376,42 @@ retained attachments accumulated across scans remain importable.
 Cancellation after a text commit accurately reports the retained complete text.
 Only status/counters are persisted as job state; evidence is cleared on exit.
 Both DOM routes remain operational and never attach this transport.
+
+### Gemini DOM share and current-page checks (0.5.75)
+
+Gemini supports the same four page/method choices as ChatGPT. A DOM share job
+uses the existing owned-tab lifecycle without a debugger or source reload.
+Short-link expansion remains explicit and credential-free. Its adapter scans
+rendered share turns with overlapping forward steps, requires alternating
+question/answer slots from zero with no unexplained holes, and retains legacy
+text aliases only in transient memory. Numeric indexes establish completeness
+inside one document; all such IDs/orders are removed before a cross-page join.
+
+The source worker reads the exact originating document and rendered account,
+and binds its document token, branch revision and account slot. The final share
+pair must uniquely match the source. Cancellation, refresh, account/branch
+changes and source/share navigation revoke saving. Ordinary opened share tabs
+still have no observer and cannot create share-identity records.
+
+DOM text preserves fenced/inline code and omits hidden copy controls and
+suggestion actions. The worker validates the exact expected DOM supplement,
+then retains existing text through unique complete-window matches, rendered
+legacy aliases or code-exact presentation comparisons. It never grants network
+provenance. Only message IDs actually covered by the scanned share can clear
+pending markers. Source account metadata, newer local text and binary copies
+survive. A separate DOM authority is checked immediately before persistence.
+An older share prefix and a newer source tail may join only when both rendered
+windows have consecutive paired-slot evidence and their entire overlap matches
+at one unique offset. The source head is rechecked before saving, so a new turn
+submitted during the task revokes that task rather than saving a stale source.
+
+Current-page Gemini sweeps now reject gaps in recognized numeric orders and
+incomplete question/answer pairs even when the generic collector inferred a
+bridge. Generation/editing must finish before a complete sweep; a newly observed
+unfinished response invalidates the running result. Cancellation and destroyed/replaced observer generations invalidate
+the running sweep. Legacy attachments follow unique complete role/text matches
+when older history is prepended; ambiguous positions stop a full replacement
+and retain the existing record.
 
 ### Manual ChatGPT share capture (DOM saving)
 

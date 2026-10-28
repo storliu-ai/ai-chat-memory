@@ -1,4 +1,5 @@
 import { ChatGPTShareAdapter } from '../adapters/chatgpt/chatgpt-share-adapter'
+import { GeminiShareAdapter } from '../adapters/gemini/gemini-share-adapter'
 import { EXTENSION_BUILD_ID } from '../shared/build-id'
 import type { ExtractedConversation } from '../shared/models'
 import { sendRuntimeRequest } from '../shared/runtime-client'
@@ -11,7 +12,8 @@ const delay = (ms: number): Promise<void> => new Promise((resolve) => window.set
 /** A share route never installs the normal observer or creates a share record.
  * Only a tab claimed by an explicit original-conversation job may scroll. */
 export async function runShareCapturePage(): Promise<void> {
-  const base = { type: RUNTIME_MESSAGE_TYPE.SHARE_CAPTURE, contentScriptBuildId: EXTENSION_BUILD_ID } as const
+  const platform = location.hostname === 'gemini.google.com' ? 'gemini' as const : 'chatgpt' as const
+  const base = { type: RUNTIME_MESSAGE_TYPE.SHARE_CAPTURE, contentScriptBuildId: EXTENSION_BUILD_ID, platform } as const
   const claimed = await sendRuntimeRequest({ ...base, action: 'claim' }).catch(() => null)
   if (!claimed?.status) return
   const jobId = claimed.status.id
@@ -30,7 +32,7 @@ export async function runShareCapturePage(): Promise<void> {
     }
     return false
   })
-  const adapter = new ChatGPTShareAdapter()
+  const adapter = platform === 'gemini' ? new GeminiShareAdapter() : new ChatGPTShareAdapter()
   let stopped = false
   let count = 0
   let progress = 3

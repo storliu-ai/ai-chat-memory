@@ -144,6 +144,8 @@ try {
     'verify-network-capture.mjs',
     'verify-network-evidence.mjs',
     'verify-gemini-capture.mjs',
+    'verify-gemini-network.mjs',
+    'verify-gemini-dom-share.mjs',
     'verify-chatgpt-message-time.mjs',
     'verify-manager-colors.mjs',
     'verify-library-filters.mjs',

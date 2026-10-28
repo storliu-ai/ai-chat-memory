@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { verificationModule } from './load-verification-module.mjs'
 import { readFileSync } from 'node:fs'
 import { runInNewContext } from 'node:vm'
 import { createHash } from 'node:crypto'
@@ -9,6 +10,9 @@ function load(path, dependencies = {}, globals = {}) {
   const code = ts.transpileModule(source(path), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2023 } }).outputText
   const exports = {}
   runInNewContext(code, { exports, URL, crypto, setTimeout, clearTimeout, ...globals, require(name) {
+    if (name.includes('/gemini/')) return verificationModule(`src/adapters/gemini/${name.split('/').at(-1)}.ts`, globals)
+    if (name === '../utils/hash') return verificationModule('src/utils/hash.ts')
+    if (name === '../shared/network-capture') return verificationModule('src/shared/network-capture.ts')
     assert.ok(name in dependencies, `Unexpected dependency ${name}`)
     return dependencies[name]
   } }, { filename: path })

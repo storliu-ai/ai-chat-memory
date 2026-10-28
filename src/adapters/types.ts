@@ -25,4 +25,7 @@ export interface AIAdapter {
     isCancelled?: () => boolean,
   ): Promise<ExtractedConversation | null>
   extractConversation(): ExtractedConversation | null
+  /** Additional rendered evidence for an explicitly started network task only. */
+  extractNetworkConversation?(): ExtractedConversation | null
+  extractDomShareConversation?(): ExtractedConversation | null
 }

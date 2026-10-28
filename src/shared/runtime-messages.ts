@@ -75,21 +75,24 @@ export type RuntimeMessageType =
 
 export type RuntimeRequest =
   | import('./network-capture').NetworkCaptureRequest
-  | { type: typeof RUNTIME_MESSAGE_TYPE.GET_CONVERSATION_SAVE_METHOD; conversationId: string }
-  | { type: typeof RUNTIME_MESSAGE_TYPE.SET_CONVERSATION_SAVE_METHOD; conversationId: string; method: import('./network-capture').ChatGPTSaveMethod | null }
-  | { type: typeof RUNTIME_MESSAGE_TYPE.GET_CONVERSATION_SHARE_LINK; conversationId: string }
-  | { type: typeof RUNTIME_MESSAGE_TYPE.SET_CONVERSATION_SHARE_LINK; conversationId: string; url: string | null }
+  | { type: typeof RUNTIME_MESSAGE_TYPE.GET_CONVERSATION_SAVE_METHOD; conversationId: string; platform?: import('./network-capture').NetworkCapturePlatform }
+  | { type: typeof RUNTIME_MESSAGE_TYPE.SET_CONVERSATION_SAVE_METHOD; conversationId: string; method: import('./network-capture').ChatGPTSaveMethod | null; platform?: import('./network-capture').NetworkCapturePlatform }
+  | { type: typeof RUNTIME_MESSAGE_TYPE.GET_CONVERSATION_SHARE_LINK; conversationId: string; platform?: import('./network-capture').NetworkCapturePlatform }
+  | { type: typeof RUNTIME_MESSAGE_TYPE.SET_CONVERSATION_SHARE_LINK; conversationId: string; url: string | null; platform?: import('./network-capture').NetworkCapturePlatform }
   | {
       type: typeof RUNTIME_MESSAGE_TYPE.GET_CONVERSATION_CAPTURE_MODE
       conversationId: string
+      platform?: import('./network-capture').NetworkCapturePlatform
     }
   | {
       type: typeof RUNTIME_MESSAGE_TYPE.SET_CONVERSATION_CAPTURE_MODE
       conversationId: string
+      platform?: import('./network-capture').NetworkCapturePlatform
       mode: import('./share-capture').ChatGPTCaptureMode | null
     }
   | {
       type: typeof RUNTIME_MESSAGE_TYPE.SHARE_CAPTURE
+      platform?: import('./network-capture').NetworkCapturePlatform
       action: 'start' | 'status' | 'claim' | 'progress' | 'finish' | 'release' | 'open' | 'cancel' | 'return'
       contentScriptBuildId: string
       conversationId?: string

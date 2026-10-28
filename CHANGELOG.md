@@ -9,6 +9,26 @@ Entries start at 0.5.68 using changes and build verification from the current ma
 session. Earlier dates and complete history have not been reconstructed. Dates identify
 local changes, not public release dates.
 
+## 0.5.75 — 2026-10-28
+
+- 补齐 Gemini 分享页 DOM 采集及四种侧边栏选项，不使用调试器、不刷新原对话。
+- 核对原页账号、文档、分支、分享末轮锚点和完整 DOM；跨页丢弃页面局部序号，保留已有正文及附件。
+- 检查并修复本页 DOM 滑动采集的消息序号缺口、取消失效及旧附件补齐历史后的定位问题；隐藏复制控件不进入新正文。
+- Added Gemini DOM share capture and all four sidebar choices, without debugger access or source reload.
+- Bind source account/document/branch, share-head text and complete DOM coverage; discard page-local cross-document indexes and preserve existing text and attachments.
+- Fixed current-page DOM gap detection, cancellation and legacy attachment positioning when older history is prepended; omit hidden copy controls from new text.
+
+## 0.5.74 — 2026-10-27
+
+- 新增 Gemini 本页接口与分享页接口采集，读取精确目标自然返回的分帧响应，不调用或重放私有接口。
+- 核对原生父链、所选回答、历史终点和完整页面正文／代码；过滤隐藏显示注释及建议动作参数，不推定接口消息时间。
+- 保留发起账号与文档绑定、刷新前检查、独立附件授权；短分享链接仅在手动启动时无凭据展开。
+- 更新双语说明、隐私政策与合成回归验证。
+- Added Gemini current-page and share-page network capture using bounded reads of naturally returned framed responses.
+- Verify native parent/selected-answer history, terminal boundaries and full rendered prose/code; omit hidden directives and action queries, never infer message times.
+- Preserve source account/document checks, safe refresh and independent attachment permissions; expand manually supplied short links without credentials.
+- Updated bilingual documentation, privacy disclosures and synthetic regression verification.
+
 ## 0.5.73 — 2026-10-27
 
 - 补齐公开维护者 storliu 及原始项目仓库地址，同步中英文说明、归属、源码获取和贡献文档。

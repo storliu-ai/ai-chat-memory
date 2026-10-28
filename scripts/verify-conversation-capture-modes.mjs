@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { verificationModule } from './load-verification-module.mjs'
 import { readFileSync } from 'node:fs'
 import { runInNewContext } from 'node:vm'
 import ts from 'typescript'
@@ -10,6 +11,7 @@ function load(path, dependencies = {}, globals = {}) {
   } }).outputText
   const exports = {}
   runInNewContext(code, { exports, ...globals, require(name) {
+    if (name.includes('/gemini/')) return verificationModule(`src/adapters/gemini/${name.split('/').at(-1)}.ts`, globals)
     assert.ok(name in dependencies, `Unexpected dependency ${name}`)
     return dependencies[name]
   } }, { filename: path })
@@ -32,7 +34,7 @@ const db = { STORE_NAME: { SETTINGS: 'settings' },
 }
 const shareHelpers = load('src/shared/share-capture.ts', {}, { URL })
 const networkHelpers = load('src/shared/network-capture.ts')
-const preferences = load('src/db/conversation-capture-modes.ts', { './database': db, '../shared/share-capture': shareHelpers })
+const preferences = load('src/db/conversation-capture-modes.ts', { './database': db, '../shared/share-capture': shareHelpers, '../adapters/gemini/capture-urls': verificationModule('src/adapters/gemini/capture-urls.ts') })
 assert.equal(await preferences.getConversationCaptureMode('a'), null)
 await preferences.setConversationCaptureMode('a', 'share')
 assert.equal(await preferences.getConversationCaptureMode('a'), 'share')
@@ -115,8 +117,8 @@ function panel(initialContext = { platform: 'chatgpt', conversationId: 'a' }) {
     '../../shared/share-capture': shareHelpers,
     '../services/panel-api': {
       getSavedConversation: async () => savedConversation, getSettings: async () => ({ ...defaults }),
-      getConversationCaptureMode: async (id) => {
-        const mode = await preferences.getConversationCaptureMode(id)
+      getConversationCaptureMode: async (id, platform) => {
+        const mode = await preferences.getConversationCaptureMode(id, platform)
         if (pendingRead) await pendingRead
         return mode
       },
@@ -125,9 +127,9 @@ function panel(initialContext = { platform: 'chatgpt', conversationId: 'a' }) {
       setConversationSaveMethod: preferences.setConversationSaveMethod,
       networkCaptureAction: async (...args) => { networkActions.push(args); return { status: networkStatus, paused: networkHelpers.isNetworkCaptureActive(networkStatus), canControl: networkCanControl } },
       setConversationShareLink: preferences.setConversationShareLink,
-      setConversationCaptureMode: async (id, mode) => {
+      setConversationCaptureMode: async (id, mode, platform) => {
         if (pendingWrite) await pendingWrite
-        return preferences.setConversationCaptureMode(id, mode)
+        return preferences.setConversationCaptureMode(id, mode, platform)
       },
       shareCaptureAction: async (...args) => { shareActions.push(args); return { status: restoredStatus } },
     },
@@ -269,7 +271,16 @@ pendingWrite = null
 assert.equal(current.select().props.value, 'share', 'A late preference write must not change the newly opened conversation')
 current.navigate('gemini', 'gemini-a')
 await current.flush()
-assert.equal(current.select(), undefined, 'Unsupported share modes must not be offered')
+assert.equal(current.select().props.value, 'conversation', 'Gemini defaults to current-page capture')
+assert.equal(current.nodes().filter(node=>node.props?.role==='tab').length,4,'Gemini exposes all four implemented capture combinations')
+assert.equal(current.nodes().some(node=>node.props?.['data-capture-mode']==='share'&&node.props?.['data-save-method']==='dom'),true,'Gemini share DOM is available')
+current.changeMethod('network')
+await current.flush()
+current.save()
+await current.flush()
+assert.equal(networkActions.at(-1)[3].platform,'gemini','Network actions must use the Gemini namespace')
+assert.equal(await preferences.getConversationSaveMethod('gemini-a','gemini'),'network')
+assert.equal(await preferences.getConversationSaveMethod('gemini-a','chatgpt'),null,'Gemini preferences cannot overwrite ChatGPT preferences')
 current.dispose()
 restoredStatus = { id: 'synthetic-job', conversationId: 'b', phase: 'scanning', messageCount: 12, progress: 48, message: 'Synthetic active task' }
 current = panel({ platform: 'chatgpt', conversationId: 'b' })
@@ -290,7 +301,7 @@ const continueButton = current.nodes().find(node => node.type === 'button' && no
 assert.ok(continueButton)
 continueButton.props.onClick()
 await current.flush()
-assert.deepEqual(shareActions.at(-1), ['b', 'open', restoredStatus.id], 'The visible continuation action must activate the existing capture job')
+assert.deepEqual(shareActions.at(-1), ['b', 'open', restoredStatus.id, 'chatgpt'], 'The visible continuation action must activate the existing capture job')
 assert.equal(current.select().props.disabled, true, 'A rendering pause must remain an active job rather than permit another capture')
 current.dispose()
 for (const phase of ['complete', 'failed', 'cancelled']) {

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { verificationModule } from './load-verification-module.mjs'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -168,6 +169,7 @@ const adapterCode = ts.transpileModule(adapterSource, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2023 },
 }).outputText
 runInNewContext(adapterCode, { exports: adapterExports, require(name) {
+  if (name === './capture-urls' || name === './rendered-evidence' || name === './capture-page-state') return verificationModule(`src/adapters/gemini/${name.slice(2)}.ts`)
   if (name === '../base-adapter') return { BaseAdapter: class {} }
   if (name === './selectors') return selectorModule
   if (name === '../attachment-candidates' || name === '../dom-scroll-collector') return {}

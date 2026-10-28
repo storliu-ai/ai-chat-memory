@@ -7,6 +7,8 @@ export const SHARE_SOURCE_CONTEXT_REQUEST = 'AI_CHAT_MEMORY_SHARE_SOURCE_CONTEXT
 export const SHARE_TASK_STATUS_EVENT = 'AI_CHAT_MEMORY_SHARE_TASK_STATUS'
 
 export interface ShareCaptureStatus {
+  /** Older tasks without this field belong to ChatGPT. */
+  platform?: 'chatgpt' | 'gemini'
   id: string
   conversationId: string
   originTabId: number

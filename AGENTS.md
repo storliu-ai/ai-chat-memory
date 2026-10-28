@@ -26,14 +26,14 @@ capture, persistence, or cross-context messaging.
 ## Behavioral and privacy boundaries
 
 - Read only conversation data already rendered in an open page. Passive capture
-  stays on the current conversation. The explicit ChatGPT share-capture action
+  stays on the current conversation. The explicit ChatGPT or Gemini share-capture action
   may open one extension-owned tab for the single share URL manually supplied
   by the user, scroll its rendered DOM, and supplement the originating record
   after identity and completeness checks. Never enumerate remote conversations,
   read credentials, scrape private APIs, automate host-page clicks, or upload
   analytics or logs. Sharing itself remains a manual host-page operation.
 - Network reads are allowed for the bounded attachment-copy flow and for an
-  explicitly started ChatGPT network-capture task. The latter uses only the
+  explicitly started ChatGPT or Gemini network-capture task. The latter uses only the
   background `network-debug-session.ts` module, the exact target conversation or
   supplied share URL, and naturally returned responses. It must never call or
   replay private APIs, read authentication headers/cookies, or persist raw
@@ -50,6 +50,18 @@ capture, persistence, or cross-context messaging.
   Current-page network tasks may
   perform one controlled reload only after a final synchronous draft, attachment,
   editing and generation check; ordinary capture never gains this permission.
+- An explicitly supplied Gemini public short share URL may be expanded through
+  a bounded credential-free GET. Discard its body and require a canonical Google
+  share URL before attaching the exact owned capture tab. This is not permission
+  to call private RPCs or enumerate shares. Gemini network saving requires the
+  exact native conversation/selected-parent chain, a terminal history boundary,
+  and full rendered prose/code evidence. Unsupported displays fail closed;
+  Gemini does not support exceptional candidate confirmation.
+- Gemini DOM shares use no debugger or source reload. Require complete paired
+  DOM coverage and a unique share-head anchor in the originating document.
+  Bind account, document token and branch revision; discard page-local message
+  indexes before cross-page joins. Keep legacy text aliases transient, retain
+  local text/attachments, and never grant network provenance to DOM results.
 - Keep host-specific selectors and DOM interpretation inside the corresponding
   adapter. Shared orchestration and services must stay platform-neutral.
 - Missing or ambiguous native pin evidence must fail closed for first-time

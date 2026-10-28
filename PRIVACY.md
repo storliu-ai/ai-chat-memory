@@ -1,6 +1,6 @@
 # AI Chat Memory — 隐私政策 / Privacy Policy
 
-最近更新 / Last updated: 2026-10-27
+最近更新 / Last updated: 2026-10-28
 
 [中文](#中文) | [English](#english)
 
@@ -22,7 +22,7 @@
 
 设置与任务数据：自动保存和平台开关、采集偏好、手动粘贴的分享链接、界面设置、随机生成的本地环境标识、环境名称、用户选择的目录句柄，以及采集任务标识、标签页标识、进度、计数、结果和错误状态。环境标识用于隔离本地目录，不用于跨网站追踪。
 
-未发送草稿、待发送附件、编辑和生成状态仅用于判断接口采集是否可以安全刷新页面，不作为对话记录保存。搜索在本地执行，不上传搜索词。
+未发送草稿和待发送附件状态用于判断接口采集是否可以安全刷新；编辑和生成状态还用于完整 DOM 采集的就绪检查。这些状态不作为对话记录保存。搜索在本地执行，不上传搜索词。
 
 ### 自动采集、手动采集和临时数据
 
@@ -30,9 +30,11 @@
 
 ChatGPT 和 Gemini 的手动完整 DOM 采集可以滚动当前对话以读取虚拟列表。页面切换、身份不符或完整性无法核对时，不把结果当作完整保存。
 
-明确启动 ChatGPT 接口采集后，扩展通过 debugger 读取精确目标自然返回的响应。当前页模式会在最后检查草稿、附件、编辑和生成状态后受控刷新一次。扩展不调用或重放私有对话接口，不提取认证头、Cookie 值或令牌，也不持久化完整原始响应。
+明确启动 ChatGPT 或 Gemini 接口采集后，扩展通过 debugger 读取精确目标自然返回的响应。当前页模式会在最后检查草稿、附件、编辑和生成状态后受控刷新一次。扩展不调用或重放私有对话接口，不提取认证头、Cookie 值或令牌，也不持久化完整原始响应。
 
 原始响应和未确认候选仅在任务处理所需的内存中临时保留，不进入任务状态存储。普通保存须先通过身份和完整性校验；异常候选只有在来源身份仍安全绑定且你在发起侧边栏明确确认后，才以规范化文本保存并标记待补全，不替换已有匹配正文，也不复制新附件。取消、身份失效或后台重启会丢弃未确认候选。
+
+分享页 DOM 采集读取已渲染内容，不使用 debugger，也不刷新原对话；保存记录仍绑定原对话的账号，不能以分享页的账号替代。
 
 ### 存放位置与保留期限
 
@@ -48,7 +50,7 @@ ChatGPT 和 Gemini 的手动完整 DOM 采集可以滚动当前对话以读取�
 
 按权限保存附件时，扩展可能通过 HTTPS 读取页面已经提供的资源地址。图片主机限定为 lh3.googleusercontent.com、lh3.google.com、*.oaiusercontent.com 和 images.openai.com；普通文件下载也受已渲染候选、授权及大小限制。请求可能使用浏览器已有的登录会话，资源提供方可按正常请求获得 IP 地址和请求元数据；扩展不读取 Cookie 值或将登录凭据另行发送给开发者。
 
-分享页采集只会打开你明确提供的单个 ChatGPT 分享地址。分享的创建和更新由你在网站上手动完成；链接的访问范围由 ChatGPT 决定，不能把分享链接视为扩展加密的私人存储。
+分享页采集只会打开你明确提供的单个 ChatGPT 或 Gemini 分享地址。Gemini 短链接会通过不携带登录凭据的有界请求展开为完整分享地址，响应正文会被丢弃；Google 可收到请求的 IP 地址和常规元数据。分享的创建和更新由你在网站上手动完成；链接的访问范围由相应网站决定，不能把分享链接视为扩展加密的私人存储。
 
 只有你主动导出、复制内容或授权目录镜像时，数据才由扩展写出该浏览器配置文件。若你将导出文件或共享目录放入云盘或发给他人，这些服务或接收者可能获得数据，其处理由你选择的渠道和相应政策决定。
 
@@ -56,7 +58,7 @@ Codex 仅作为本项目开发辅助工具，不是扩展运行时服务。扩�
 
 ### 权限及附件选择
 
-支持站点的内容脚本用于当前对话读取及浮动面板。debugger 权限仅用于你明确启动的 ChatGPT 接口采集或读取验证；其他普通自动更新不使用该权限。文件系统访问只针对你通过系统选择器明确授权的目录。
+支持站点的内容脚本用于当前对话读取及浮动面板。debugger 权限仅用于你明确启动的 ChatGPT 或 Gemini 接口采集或读取验证；其他普通自动更新不使用该权限。文件系统访问只针对你通过系统选择器明确授权的目录。
 
 图片保存默认开启，可按对话覆盖；普通文件需按对话授权。单个附件上限可选 1、2、5 或 10 MB，硬上限为 10 MB；每条对话附件解码后总量上限为 30 MB。权限关闭、读取失败或超过限制时，只保留适用的名称、状态等元数据。
 
@@ -116,7 +118,7 @@ Attachment data: rendered conversation images, filenames, types, sizes, save sta
 
 Settings and task data: automatic-save/platform switches, capture preferences, pasted share links, display settings, a randomly generated local environment identifier, its name, a directory handle chosen by you, and capture/task/tab identifiers, progress, counts, results, and error status. Environment identifiers separate local directory mirrors and are not used for cross-site tracking.
 
-Unsent draft, pending attachment, editing, and generation states are checked only to decide whether a network capture can safely refresh the page. They are not saved as conversation records. Search runs locally and search terms are not uploaded.
+Unsent drafts and pending attachments are checked to decide whether network capture may safely refresh. Editing and generation states also guard complete DOM captures. These states are not saved as conversation records. Search runs locally and search terms are not uploaded.
 
 ### Automatic capture, manual capture, and transient data
 
@@ -124,9 +126,11 @@ Automatic saving is on by default, with first-time collection restricted by defa
 
 Manual complete DOM capture in ChatGPT and Gemini may scroll the current conversation to read virtualized windows. Navigation, identity mismatches, or unverified completeness are not reported as a complete save.
 
-Explicit ChatGPT network capture uses the debugger to read responses naturally returned for the exact target. Current-page mode performs one controlled refresh after a final draft, attachment, editing, and generation check. It does not call or replay private conversation APIs, extract authentication headers, cookie values, or tokens, or persist full raw responses.
+Explicit ChatGPT or Gemini network capture uses the debugger to read responses naturally returned for the exact target. Current-page mode performs one controlled refresh after a final draft, attachment, editing, and generation check. It does not call or replay private conversation APIs, extract authentication headers, cookie values, or tokens, or persist full raw responses.
 
 Raw responses and unconfirmed candidates are held transiently in memory for task processing, not in persisted task status. Ordinary saves require identity and completeness checks. An exceptional candidate is retained as normalized text only while safely identity-bound and after confirmation in the originating sidebar. It remains marked pending completion, does not replace existing matching text, and copies no new attachments. Cancellation, invalid identity, or a background restart discards unconfirmed candidates.
+
+Share-page DOM capture reads rendered content without using the debugger or refreshing the original conversation. Saved records remain bound to the originating account, not the share viewer's account.
 
 ### Storage and retention
 
@@ -142,7 +146,7 @@ The extension operates no backend, telemetry, advertising, remote analytics, or 
 
 When copying authorized attachments, the extension may read resource URLs already supplied by the page over HTTPS. Image hosts are limited to lh3.googleusercontent.com, lh3.google.com, *.oaiusercontent.com, and images.openai.com. Ordinary-file downloads are also gated by rendered candidates, permissions, and limits. Requests may use the browser's existing login session; resource providers may receive your IP address and normal request metadata. The extension does not read cookie values or separately send login credentials to the developer.
 
-Share-page capture opens only the single ChatGPT share URL that you explicitly supply. You create or update sharing manually on the website. ChatGPT controls link visibility; a share link is not private storage encrypted by the extension.
+Share-page capture opens only the single ChatGPT or Gemini share URL that you explicitly supply. A bounded request without login credentials expands a Gemini short link to its full share URL and discards the response body; Google may receive the request IP address and ordinary metadata. You create or update sharing manually on the website. The respective website controls link visibility; a share link is not private storage encrypted by the extension.
 
 The extension writes data outside that browser profile only when you explicitly export, copy content, or authorize a directory mirror. If you put exports or the shared directory in a cloud-sync folder or send them to someone, those services or recipients may receive the data under your chosen channel and its policies.
 
@@ -150,7 +154,7 @@ Codex is a development aid for this project, not a runtime service. The extensio
 
 ### Permissions and attachment choices
 
-Content scripts on supported sites read the current conversation and display the floating panel. The debugger permission is used only for ChatGPT network capture or reading probes that you explicitly start, not ordinary automatic updates. File-system access is limited to the directory you explicitly authorize through the system picker.
+Content scripts on supported sites read the current conversation and display the floating panel. The debugger permission is used only for ChatGPT or Gemini network capture or reading probes that you explicitly start, not ordinary automatic updates. File-system access is limited to the directory you explicitly authorize through the system picker.
 
 Image saving is on by default with per-conversation overrides; ordinary files require per-conversation permission. The per-attachment limit is 1, 2, 5, or 10 MB with a 10 MB hard ceiling. Decoded attachments total at most 30 MB per conversation. Disabled permission, read failures, or limits leave applicable metadata such as names and status.
 

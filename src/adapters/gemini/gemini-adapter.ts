@@ -1,5 +1,8 @@
 import type { ChatMessage, ExtractedConversation } from '../../shared/models'
 import { BaseAdapter } from '../base-adapter'
+import { geminiDomMarkdown, readGeminiDisplayEvidence } from './rendered-evidence'
+import { getGeminiShareId } from './capture-urls'
+import { hasGeminiUnfinishedResponse } from './capture-page-state'
 import {
   collectAttachmentCandidates,
   isOpaqueResourceName,
@@ -132,24 +135,88 @@ export class GeminiAdapter extends BaseAdapter {
     return this.getRenderedMessageEntries(container).map(({ message }) => message)
   }
 
+  extractNetworkConversation(): ExtractedConversation | null {
+    const capture = this.extractConversation(), container = this.getConversationContainer()
+    if (!capture || !container) return null
+    const entries = this.getRenderedMessageEntries(container)
+    if (entries.length !== capture.messages.length) throw new Error('Gemini 页面消息正在变化，请重试')
+    return { ...capture, networkEvidence: entries.flatMap((entry, messageIndex) => entry.message.role === 'assistant'
+      ? [{ messageIndex, ...readGeminiDisplayEvidence(entry.root) }] : []) }
+  }
+
+  extractDomShareConversation(): ExtractedConversation | null {
+    const capture = this.extractConversation(), container = this.getConversationContainer()
+    if (!capture || !container) return null
+    const entries = this.getRenderedMessageEntries(container)
+    if (entries.length !== capture.messages.length) throw new Error('Gemini 页面消息正在变化，请重试')
+    const aliases: string[][] = []
+    const messages = entries.map(({ root, message }) => {
+      const clone = root.cloneNode(true) as Element
+      for (const node of clone.querySelectorAll('elicitations, .elicitations-container')) node.remove()
+      aliases.push([...new Set([message.content, this.readMessage(root, true)?.content ?? message.content, this.readMessage(clone, true)?.content ?? message.content, ...(message.role === 'assistant' ? [geminiDomMarkdown(root, true)] : [])])])
+      const clean = { ...message, content: message.role === 'assistant' ? geminiDomMarkdown(root) : message.content }
+      // These IDs belong to a single rendered document, never a cross-page join.
+      delete clean.sourceMessageId; delete clean.sourceTurnId
+      return clean
+    })
+    return { ...capture, messages, domMessageAliases: aliases, attachmentCandidates: capture.attachmentCandidates?.map((candidate) => ({ ...candidate, sourceTurnId: undefined })) }
+  }
+
+  async collectNetworkConversation(onProgress: (count: number) => void, cancelled: () => boolean): Promise<ExtractedConversation | null> {
+    const id = this.getConversationId(), container = this.getConversationContainer()
+    if (!id || !container) return null
+    const proofs = new Map<string, NonNullable<ExtractedConversation['networkEvidence']>[number]>()
+    const key = (message: ChatMessage): string => JSON.stringify([message.role, message.sourceTurnId, message.sourceOrder, message.content])
+    const extract = (): ExtractedConversation | null => {
+      if (cancelled()) throw new Error('Gemini 接口采集已取消')
+      const capture = this.extractNetworkConversation()
+      for (const proof of capture?.networkEvidence ?? []) proofs.set(key(capture!.messages[proof.messageIndex]), proof)
+      return capture
+    }
+    const capture = getGeminiShareId(location.href) ? extract() : await collectConversationByScrolling({
+      container, getContainer: () => this.getConversationContainer(), conversationId: id,
+      getConversationId: () => cancelled() ? null : this.getConversationId(), extractConversation: extract,
+      turnSelector: GEMINI_SELECTORS.CONVERSATION_TURN.join(','), onProgress,
+    })
+    if (!capture) return null
+    return { ...capture, networkEvidence: capture.messages.flatMap((message, messageIndex) => {
+      const proof = proofs.get(key(message))
+      return proof ? [{ ...proof, messageIndex }] : []
+    }) }
+  }
+
   /** Explicitly sweep Gemini's virtualized history for a manual save. */
-  collectConversation(
+  async collectConversation(
     onProgress: (messageCount: number) => void = () => undefined,
+    cancelled: () => boolean = () => false,
   ): Promise<ExtractedConversation | null> {
+    if (hasGeminiUnfinishedResponse()) throw new Error('Gemini 正在生成或编辑回复，请结束后重新进行完整 DOM 采集')
+    let interrupted = false
+    const invalidated = (): boolean => {
+      interrupted ||= cancelled() || hasGeminiUnfinishedResponse()
+      return interrupted
+    }
     const conversationId = this.getConversationId()
     const container = this.getConversationContainer()
     if (conversationId === null || container === null) {
       return Promise.resolve(this.extractConversation())
     }
-    return collectConversationByScrolling({
+    const capture = await collectConversationByScrolling({
       container,
       getContainer: () => this.getConversationContainer(),
       conversationId,
-      getConversationId: () => this.getConversationId(),
+      getConversationId: () => invalidated() ? null : this.getConversationId(),
       extractConversation: () => this.extractConversation(),
       turnSelector: GEMINI_SELECTORS.CONVERSATION_TURN.join(','),
       onProgress,
     })
+    if (!capture || !capture.captureComplete) return capture
+    if (invalidated()) return { ...capture, captureComplete: false, captureIncompleteReason: 'boundary' }
+    const start = capture.messages[0]?.sourceOrder
+    const knownOrder = capture.messages.some((message) => message.sourceOrder !== undefined)
+    const invalid = capture.messages.length % 2 !== 0 || capture.messages.some((message, index) => message.role !== (index % 2 ? 'assistant' : 'user')) ||
+      knownOrder && (start !== 0 && start !== 1 || capture.messages.some((message, index) => message.sourceOrder !== start! + index))
+    return invalid ? { ...capture, captureComplete: false, captureIncompleteReason: 'gap' } : capture
   }
 
   private readMessageEntriesFromRoot(root: ParentNode): RenderedMessageEntry[] {
@@ -387,7 +454,7 @@ export class GeminiAdapter extends BaseAdapter {
     }
   }
 
-  private readMessage(element: Element): ChatMessage | null {
+  private readMessage(element: Element, legacy = false): ChatMessage | null {
     const tagName = element.tagName.toLowerCase()
     const renderedRole = element.getAttribute('data-message-author-role')
     const role =
@@ -405,6 +472,7 @@ export class GeminiAdapter extends BaseAdapter {
       '.action-bar',
       'details[class*="thought"]',
       '[class*="visually-hidden"]',
+      ...(legacy ? [] : ['.only-show-to-message-actions']),
     ])
     const attachmentElements = this.queryAll(GEMINI_SELECTORS.ATTACHMENT, element)
     const attachmentNames = attachmentElements

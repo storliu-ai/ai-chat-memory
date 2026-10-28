@@ -38,6 +38,7 @@ import {
   subscribeHostConversationLiveState,
 } from '../services/host-bridge'
 import { normalizeChatGPTShareUrl, type ChatGPTCaptureMode, type ShareCaptureStatus } from '../../shared/share-capture'
+import { normalizeGeminiShareUrl } from '../../adapters/gemini/capture-urls'
 
 const STUCK_SYNC_RECOVERY_MS = 10_000
 const CURRENT_CONVERSATION_READ_ERROR = '当前对话状态读取失败'
@@ -149,13 +150,16 @@ export function CurrentConversationPanel() {
   const previousShareJobId = useRef<string | null>(null)
   const contextRef = useRef(context)
   const manualOperation = useRef(0)
-  const defaultCaptureMode = settings?.chatgptCaptureMode ?? 'conversation'
-  const captureMode = context.platform === 'chatgpt' ? networkActive ? networkStatus!.mode : captureModeOverride ?? defaultCaptureMode : 'conversation'
-  const saveMethod = context.platform === 'chatgpt' ? networkActive ? 'network' : saveMethodOverride ?? settings?.chatgptSaveMethod ?? 'dom' : 'dom'
+  const supportsNetwork = context.platform === 'chatgpt' || context.platform === 'gemini'
+  const networkPlatform = context.platform === 'gemini' ? 'gemini' : 'chatgpt'
+  const captureChoices = CAPTURE_CHOICES
+  const defaultCaptureMode = context.platform === 'gemini' ? 'conversation' : settings?.chatgptCaptureMode ?? 'conversation'
+  const captureMode = supportsNetwork ? networkActive ? networkStatus!.mode : captureModeOverride ?? defaultCaptureMode : 'conversation'
+  const saveMethod = supportsNetwork ? networkActive ? 'network' : saveMethodOverride ?? (context.platform === 'gemini' ? 'dom' : settings?.chatgptSaveMethod ?? 'dom') : 'dom'
   const usesShare = captureMode !== 'conversation'
   const shareActive = shareStatus !== null && !['complete', 'failed', 'cancelled'].includes(shareStatus.phase)
   useEffect(() => {
-    if (context.platform !== 'chatgpt' || !context.conversationId) return
+    if (!supportsNetwork || !context.conversationId) return
     let disposed = false
     let timer: number | undefined
     let pending = false
@@ -163,7 +167,7 @@ export function CurrentConversationPanel() {
       if (pending || disposed) return
       pending = true
       try {
-        const response = await networkCaptureAction(context.conversationId!, 'status')
+        const response = await networkCaptureAction(context.conversationId!, 'status', undefined, { platform: networkPlatform })
         if (!disposed) {
           setNetworkStatus(response.status); setNetworkControllable(response.canControl !== false)
           if (response.status && ['complete', 'partial'].includes(response.status.phase) && completedNetworkJob.current !== response.status.id) {
@@ -184,16 +188,16 @@ export function CurrentConversationPanel() {
     void poll()
     chrome.runtime.onMessage.addListener(listener)
     return () => { disposed = true; if (timer !== undefined) window.clearTimeout(timer); chrome.runtime.onMessage.removeListener(listener) }
-  }, [context.platform, context.conversationId, networkActive])
+  }, [context.platform, context.conversationId, networkActive, networkPlatform, supportsNetwork])
   useEffect(() => {
-    if (context.platform !== 'chatgpt' || !context.conversationId) return
+    if (!supportsNetwork || !context.conversationId) return
     let disposed = false
     let pending = false
     const update = async (): Promise<void> => {
       if (pending) return
       pending = true
       try {
-        const response = await shareCaptureAction(context.conversationId!, 'status')
+        const response = await shareCaptureAction(context.conversationId!, 'status', undefined, networkPlatform)
         if (!disposed && !(manualShareSaving && response.status?.id === previousShareJobId.current)) {
           setShareStatus(response.status)
           if (response.status?.phase === 'complete') setRefreshVersion((value) => value + 1)
@@ -210,7 +214,7 @@ export function CurrentConversationPanel() {
     }
     void poll()
     return () => { disposed = true; if (timer !== null) window.clearTimeout(timer) }
-  }, [manualShareSaving, shareActive, context.conversationId, context.platform])
+  }, [manualShareSaving, shareActive, context.conversationId, context.platform, supportsNetwork, networkPlatform])
   const [locked, setLocked] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -293,9 +297,9 @@ export function CurrentConversationPanel() {
       void Promise.all([
         getSavedConversation(context.platform, context.conversationId),
         getSettings(),
-        context.platform === 'chatgpt' ? getConversationCaptureMode(context.conversationId) : Promise.resolve(null),
-        context.platform === 'chatgpt' ? getConversationShareLink(context.conversationId) : Promise.resolve(null),
-        context.platform === 'chatgpt' ? getConversationSaveMethod(context.conversationId) : Promise.resolve(null),
+        supportsNetwork ? getConversationCaptureMode(context.conversationId, networkPlatform) : Promise.resolve(null),
+        supportsNetwork ? getConversationShareLink(context.conversationId, networkPlatform) : Promise.resolve(null),
+        supportsNetwork ? getConversationSaveMethod(context.conversationId, networkPlatform) : Promise.resolve(null),
       ])
         .then(([nextConversation, nextSettings, nextCaptureMode, nextShareUrl, nextSaveMethod]) => {
           if (active) {
@@ -364,24 +368,24 @@ export function CurrentConversationPanel() {
       window.removeEventListener('pageshow', handlePageShow)
       document.removeEventListener('visibilitychange', handleVisibility)
     }
-  }, [context, refreshVersion])
+  }, [context, refreshVersion, networkPlatform, supportsNetwork])
 
   const changeShareUrl = (value: string): void => {
     setShareUrl(value)
     shareUrlEdited.current = true
     shareUrlRevision.current += 1
     const id = context.conversationId
-    const url = normalizeChatGPTShareUrl(value)
+    const url = context.platform === 'gemini' ? normalizeGeminiShareUrl(value) : normalizeChatGPTShareUrl(value)
     const revision = shareUrlRevision.current
     if (id && (url || !value.trim())) {
-      void setConversationShareLink(id, url).catch(() => {
+      void setConversationShareLink(id, url, networkPlatform).catch(() => {
         if (revision === shareUrlRevision.current) setError('分享链接未能记住，请重新粘贴后重试')
       })
     }
   }
 
   const changeCaptureChoice = async (mode: ChatGPTCaptureMode, method: ChatGPTSaveMethod): Promise<void> => {
-    if (busy || shareActive || networkActive || loading || context.platform !== 'chatgpt' || context.conversationId === null) return
+    if (busy || shareActive || networkActive || loading || !supportsNetwork || context.conversationId === null) return
     const modeChanged = mode !== captureMode
     const methodChanged = method !== saveMethod
     if (!modeChanged && !methodChanged) return
@@ -396,8 +400,8 @@ export function CurrentConversationPanel() {
       // The tab is a presentation of two independent preferences. Unchanged
       // dimensions keep inheriting their Manager default instead of gaining an override.
       const [modeResult, methodResult] = await Promise.allSettled([
-        modeChanged ? setConversationCaptureMode(context.conversationId, mode) : Promise.resolve(captureModeOverride),
-        methodChanged ? setConversationSaveMethod(context.conversationId, method) : Promise.resolve(saveMethodOverride),
+        modeChanged ? setConversationCaptureMode(context.conversationId, mode, networkPlatform) : Promise.resolve(captureModeOverride),
+        methodChanged ? setConversationSaveMethod(context.conversationId, method, networkPlatform) : Promise.resolve(saveMethodOverride),
       ])
       if (operation !== manualOperation.current) return
       if (modeChanged) {
@@ -422,7 +426,7 @@ export function CurrentConversationPanel() {
     setBusy(true)
     setError(null)
     try {
-      const response = await networkCaptureAction(context.conversationId, action, networkStatus.id)
+      const response = await networkCaptureAction(context.conversationId, action, networkStatus.id, { platform: networkPlatform })
       if (operation === manualOperation.current) {
         setNetworkStatus(response.status)
         if (action === 'confirm') setRefreshVersion((value) => value + 1)
@@ -439,11 +443,12 @@ export function CurrentConversationPanel() {
     ) {
       return
     }
-    if (saveMethod === 'network' && context.platform === 'chatgpt') {
+    if (saveMethod === 'network' && supportsNetwork) {
       const operation = ++manualOperation.current
       setBusy(true); setError(null); setNotice(null); setCaptureBlockers([])
       try {
         const response = await networkCaptureAction(context.conversationId, 'start', undefined, {
+          platform: networkPlatform,
           mode: captureMode, operation: 'save', allowFiles: saveFilesOnFirstCapture, saveImages: conversationSavesImages,
           ...(usesShare ? { shareUrl: shareUrl.trim() } : {}),
         })
@@ -673,7 +678,7 @@ export function CurrentConversationPanel() {
   const needsForeground = networkActive ? networkStatus?.phase === 'needs-foreground' : shareStatus?.phase === 'needs-foreground'
   const cancelShare = (): void => {
     cancelHostShareCapture()
-    if (shareStatus && context.conversationId) void shareCaptureAction(context.conversationId, 'cancel', shareStatus.id)
+    if (shareStatus && context.conversationId) void shareCaptureAction(context.conversationId, 'cancel', shareStatus.id, networkPlatform)
       .then((response) => setShareStatus(response.status)).catch(() => setError('取消采集失败，请重试'))
   }
 
@@ -717,9 +722,9 @@ export function CurrentConversationPanel() {
         </section> : <>
           <section className="controller-card controller-capture-mode" aria-label="采集设置">
             <strong className="controller-section-title">采集对话</strong>
-            {context.platform === 'chatgpt' && <>
+            {supportsNetwork && <>
               <div id="conversation-capture-mode" className="controller-capture-tabs" role="tablist" aria-label="采集模式与保存方式">
-                {CAPTURE_CHOICES.map(({ mode, method }, index) => <button key={`${mode}-${method}`} type="button" role="tab"
+                {captureChoices.map(({ mode, method }, index) => <button key={`${mode}-${method}`} type="button" role="tab"
                   data-capture-mode={mode} data-save-method={method}
                   aria-selected={captureMode === mode && saveMethod === method}
                   tabIndex={captureMode === mode && saveMethod === method ? 0 : -1}
@@ -727,13 +732,13 @@ export function CurrentConversationPanel() {
                   title={`${CAPTURE_MODE_LABELS[mode]} + ${method === 'dom' ? 'DOM' : '接口'}；选择后点击滑动采集`}
                   disabled={loading || busy || shareActive || networkActive}
                   onKeyDown={(event) => {
-                    const nextIndex = event.key === 'ArrowRight' ? (index + 1) % CAPTURE_CHOICES.length
-                      : event.key === 'ArrowLeft' ? (index + CAPTURE_CHOICES.length - 1) % CAPTURE_CHOICES.length
-                        : event.key === 'Home' ? 0 : event.key === 'End' ? CAPTURE_CHOICES.length - 1 : null
+                    const nextIndex = event.key === 'ArrowRight' ? (index + 1) % captureChoices.length
+                      : event.key === 'ArrowLeft' ? (index + captureChoices.length - 1) % captureChoices.length
+                        : event.key === 'Home' ? 0 : event.key === 'End' ? captureChoices.length - 1 : null
                     if (nextIndex === null) return
                     event.preventDefault()
                     event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[nextIndex]?.focus()
-                    const choice = CAPTURE_CHOICES[nextIndex]
+                    const choice = captureChoices[nextIndex]
                     void changeCaptureChoice(choice.mode, choice.method)
                   }}
                   onClick={() => void changeCaptureChoice(mode, method)}>
@@ -743,7 +748,7 @@ export function CurrentConversationPanel() {
               </div>
               {(usesShare || shareActive) && <div className="controller-share-capture">
                 <label htmlFor="share-capture-url">整条对话的分享链接</label>
-                <input id="share-capture-url" type="url" maxLength={256} placeholder="https://chatgpt.com/share/…"
+                <input id="share-capture-url" type="url" maxLength={2048} placeholder={context.platform === 'gemini' ? 'https://share.gemini.google/…' : 'https://chatgpt.com/share/…'}
                   value={shareUrl} disabled={busy || shareActive || networkActive} onChange={(event) => changeShareUrl(event.target.value)} />
                 <small>在网站手动更新分享后粘贴，链接仅存本机。</small>
               </div>}
@@ -828,7 +833,7 @@ export function CurrentConversationPanel() {
             {canOpenShare && <button type="button" className={needsForeground ? 'controller-primary-button' : 'controller-share-button'} disabled={networkActive && busy}
               onClick={() => {
                 if (networkActive) void controlNetworkCapture('open')
-                else if (shareStatus) void shareCaptureAction(context.conversationId!, 'open', shareStatus.id).catch(() => setError('无法打开采集页'))
+                else if (shareStatus) void shareCaptureAction(context.conversationId!, 'open', shareStatus.id, networkPlatform).catch(() => setError('无法打开采集页'))
               }}>打开分享页 ↗</button>}
             {networkActive && networkStatus?.operation !== 'save' && <button type="button" className="controller-share-button" disabled={busy || networkStatus?.phase !== 'reading'}
               onClick={() => void controlNetworkCapture('finish')}>结束验证</button>}

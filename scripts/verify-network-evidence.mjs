@@ -329,4 +329,33 @@ const imported = await management.validateConversation(row, 0)
 assert.equal(imported.pendingCapture.reason, pendingReason, 'Backup/shared-directory validation retains the pending status')
 await assert.rejects(() => management.validateConversation({ ...row, pendingCapture: { reason: 'x', source: 'unknown' } }, 0), /invalid structure/)
 
+const geminiId = await hashes.createConversationId('gemini', 'synthetic-account', 'aaaaaaaaaaaaaaaa')
+const legacyAssistant = {role:'assistant',content:'Rendered legacy answer',sourceTurnId:'dom-turn',sentAt:123456000,sentAtPrecision:'minute',attachmentNames:['synthetic.txt']}
+row = {id:geminiId,platform:'gemini',accountId:'synthetic-account',conversationId:'aaaaaaaaaaaaaaaa',title:'Gemini local',url:'https://gemini.google.com/app/'+'a'.repeat(16),messages:[{role:'user',content:'Question'},legacyAssistant],attachments:[{...savedAttachment,sourceTurnId:'dom-turn'}],important:true,fileAttachmentPermission:true,imageAttachmentPermission:false,createdAt:123,updatedAt:456,contentHash:'0'.repeat(64)}
+const geminiPayload = {...payload,platform:'gemini',accountId:'synthetic-account',conversationId:'aaaaaaaaaaaaaaaa',url:row.url,messages:[{role:'user',content:'Older question',sourceMessageId:'r_aaaaaaaa:user'},{role:'assistant',content:'Older answer',sourceMessageId:'rc_aaaaaaaa'},{role:'user',content:'Question',sourceMessageId:'r_bbbbbbbb:user'},{role:'assistant',content:'**Rendered legacy answer**',sourceTurnId:'r_bbbbbbbb',sourceMessageId:'rc_bbbbbbbb'}]}
+await service.saveVerifiedNetworkConversation(geminiPayload,async()=>true,[{previous:legacyAssistant,sourceMessageId:'rc_bbbbbbbb'}])
+assert.equal(row.messages[3].sentAt,legacyAssistant.sentAt,'A verified legacy binding retains actual source times')
+assert.equal(row.attachments[0].messageIndex,3,'Legacy attachments follow the verified native message when older history is prepended')
+assert.equal(row.attachments[0].dataUrl,savedAttachment.dataUrl)
+assert.equal(row.attachments[0].sourceTurnId,'r_bbbbbbbb','Verified legacy attachment aliases follow the native turn')
+await service.supplementVerifiedNetworkAttachments(geminiId,[{...savedAttachment,id:'e'.repeat(64),messageIndex:3,sourceTurnId:'r_bbbbbbbb',status:'unavailable',dataUrl:undefined}],async()=>true)
+assert.equal(row.attachments.length,1,'A failed recopy must not duplicate a migrated attachment under a new ID')
+assert.equal(row.attachments[0].dataUrl,savedAttachment.dataUrl)
+assert.equal(row.important,true);assert.equal(row.fileAttachmentPermission,true)
+
+const domPair = [{role:'user',content:'Existing DOM question'},{role:'assistant',content:'Existing DOM answer'}]
+row = {...row,messages:domPair,attachments:[{...savedAttachment,sourceTurnId:undefined}],contentHash:'0'.repeat(64)}
+const fullDom = {...geminiPayload,messages:[{role:'user',content:'Older DOM question'},{role:'assistant',content:'Older DOM answer'},...domPair],captureSnapshotComplete:true}
+await service.saveConversation(fullDom,'manual')
+assert.equal(row.attachments[0].messageIndex,3,'A current-page DOM sweep that prepends history repositions a legacy attachment by unique full text')
+assert.equal(row.attachments[0].dataUrl,savedAttachment.dataUrl)
+assert.ok(row.messages.every(message=>message.contentSource!=='network'),'DOM saving never grants network provenance')
+row = {...row,messages:domPair,attachments:[{...savedAttachment,sourceTurnId:undefined}],contentHash:'0'.repeat(64)}
+const beforeAmbiguous = JSON.stringify(row)
+await assert.rejects(()=>service.saveConversation({...fullDom,messages:[...domPair,...domPair]},'manual'),/附件无法/)
+assert.equal(JSON.stringify(row),beforeAmbiguous,'Ambiguous attachment positions preserve the existing complete record')
+let domAuthorityChecks=0
+await assert.rejects(()=>service.saveConversation({...fullDom,supplementOnly:true},'manual',async()=>++domAuthorityChecks===1),/授权已撤销/)
+assert.equal(JSON.stringify(row),beforeAmbiguous,'A revoked DOM-share authority cannot write text or attachments')
+
 console.log('network evidence verification passed: cursor chains, overlaps/retries/order, branch trees/cycles, visible fragments, source times, folded inputs, attachments, save authority and lossless persistence')

@@ -116,7 +116,7 @@ async function initializeContentScript(): Promise<void> {
   }
   const networkCapture = await initializeNetworkCapturePage()
   if (networkCapture.ownedPage) return
-  if (location.hostname === 'chatgpt.com' && location.pathname.startsWith('/share/')) {
+  if (['chatgpt.com', 'gemini.google.com'].includes(location.hostname) && /^(?:\/u\/\d+)?\/share\//.test(location.pathname)) {
     await runShareCapturePage()
     return
   }
@@ -179,7 +179,9 @@ async function initializeContentScript(): Promise<void> {
   chrome.runtime.onMessage.addListener((message: unknown, _sender, respond) => {
     if (typeof message === 'object' && message !== null &&
       (message as { type?: unknown }).type === SHARE_SOURCE_CONTEXT_REQUEST) {
-      respond({ ...activeObserver.getCurrentConversationContext(), url: location.href, contentScriptBuildId: EXTENSION_BUILD_ID })
+      respond({ ...activeObserver.getCurrentConversationContext(), url: location.href, contentScriptBuildId: EXTENSION_BUILD_ID,
+        ...((message as { includeCapture?: boolean }).includeCapture ? { capture: activeObserver.getShareSourceCapture() } : {}),
+      })
       return false
     }
     if (isConversationDeletedContentEvent(message)) {

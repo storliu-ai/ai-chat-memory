@@ -24,8 +24,8 @@ telemetry, or cloud synchronization. An optional shared directory requires your 
   hides while the sidebar is open, and returns when it closes. The sidebar can be resized and locked.
 - **Independent manager**: search offline and filter by platform, account, environment,
   importance, and time; inspect, export, or delete saved records.
-- **ChatGPT capture options**: choose the current page or a manually supplied share page,
-  using either DOM capture or an explicitly started network capture.
+- **Capture options**: ChatGPT offers DOM and network capture for current and share pages.
+  Gemini also offers DOM and network capture for both current and share pages.
 - **Local attachment copies**: copy readable conversation images, authorize ordinary files
   per conversation, and supplement missing files from your computer. Saved text attachments have an offline preview.
 - **Export and backup**: export a conversation or selected messages as Markdown, export
@@ -40,8 +40,8 @@ telemetry, or cloud synchronization. An optional shared directory requires your 
 | Current-conversation DOM capture and incremental updates | Supported | Supported | Supported |
 | Native pin detection for first-time automatic collection | Supported | Supported | No reliable native evidence yet |
 | Manual scrolling to read a complete conversation | Supported | Supported | Uses current-page capture |
-| Capture from a manually supplied share link | Supported | Not integrated | Not integrated |
-| Explicit network capture | Supported | Not integrated | Not integrated |
+| Capture from a manually supplied share link | Supported | Supported (DOM / network) | Not integrated |
+| Explicit network capture | Supported | Supported | Not integrated |
 | Manage and export saved records | Supported | Supported | Supported |
 
 With pinned-only collection enabled, DeepSeek conversations need a manual first save.
@@ -104,21 +104,33 @@ part of the conversation. A saved record does not mean that your whole account h
 Manual complete DOM capture in ChatGPT and Gemini scrolls through the current conversation,
 reads additional rendered windows, and checks continuity. Successful capture leaves the page at the verified top.
 Content with unverified identity or completeness is not presented as a complete result.
+Finish Gemini response generation or editing before starting complete DOM capture.
 
-### ChatGPT share-page capture
+### ChatGPT / Gemini share-page capture
 
-1. Manually create or update a **whole-conversation** share on ChatGPT itself.
+1. Manually create or update a **whole-conversation** share on ChatGPT or Gemini itself.
 2. Return to the original conversation's extension sidebar, choose share-page mode, paste the link, and start capture.
 3. The extension opens one task-owned tab, reads the share, verifies its relationship to the original conversation,
    and supplements that original record.
 4. If background rendering pauses, use **打开分享页 ↗** to bring the capture tab forward,
    keep it visible, then return to the original sidebar for the result.
 
-The extension does not create shares for you. ChatGPT determines who can access a share link;
+The extension does not create shares for you. The respective website determines who can access a share link;
 use current-page capture for content you do not want to share. An old share may lack recent messages:
 update it manually on ChatGPT before using it to complete a record.
 
-### ChatGPT network capture
+### ChatGPT / Gemini network capture
+
+Gemini offers four sidebar choices: current-page DOM, share-page DOM, current-page network, and share-page network.
+Share network capture accepts a manually pasted Google short link or full share URL. Short links
+are expanded only when starting a task, without login credentials. Share-page DOM uses no debugger and does not refresh the source. It verifies scroll boundaries, consecutive question/answer slots and unique source text anchors, preserving existing text, attachments and originating account.
+Gemini history must pass native parent/selected-answer checks, the oldest-history boundary, and
+rendered prose/code comparisons. Unknown display components stop saving. Hidden render comments
+and suggestion-button action parameters are omitted, and private response fields never supply
+message times. Failed Gemini verification preserves existing records; retry or use current-page DOM.
+Gemini does not offer the exceptional candidate-confirmation workflow.
+The original page must render the share's final question/answer pair to bind its branch;
+if it cannot, update the whole-conversation share and retry.
 
 Network capture requires explicit selection and startup; ordinary automatic updates always use the DOM.
 It reads responses naturally returned by the exact target page and does not call or replay private conversation APIs.
@@ -128,7 +140,7 @@ selected or uploading attachments, editing, and generation. Finish editing and g
 Opening DevTools or another debugger can interrupt capture.
 
 Messages are saved as verified only after message identity, pagination or branch evidence,
-and rendered anchors pass checks. If an interrupted task offers a safely identity-bound candidate,
+and rendered anchors pass checks. If an interrupted ChatGPT task offers a safely identity-bound candidate,
 you may explicitly confirm retention from the originating sidebar. It is marked **待补全 / pending completion**,
 not a complete backup. Confirmation preserves existing text and attachments and copies no new attachments.
 Only a later complete capture that actually covers the pending messages clears the marker.
@@ -185,8 +197,9 @@ Gemini may also use a displayed email address to separate accounts. These remain
 | Permission or page scope | Purpose |
 | --- | --- |
 | Content scripts on the three supported websites | Read the current rendered conversation and display the launcher/sidebar |
-| `debugger` | Read naturally returned responses bound to an explicitly started ChatGPT network capture or probe |
+| `debugger` | Read naturally returned responses bound to an explicitly started ChatGPT or Gemini network capture or probe |
 | Google / OpenAI image hosts | Read bounded rendered image resources to create local copies |
+| Gemini public-share hosts | Expand only a manually supplied short share link, without login credentials |
 | A directory manually chosen through the system picker | Optional local mirrors between browser environments |
 
 Image hosts are `lh3.googleusercontent.com`, `lh3.google.com`, `*.oaiusercontent.com`, and

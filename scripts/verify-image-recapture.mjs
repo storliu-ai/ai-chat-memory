@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { verificationModule } from './load-verification-module.mjs'
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { runInNewContext } from 'node:vm'
@@ -13,6 +14,7 @@ function load(path, dependencies = {}, globals = {}, append = '') {
   runInNewContext(code + append, {
     exports, URL, AbortController, Blob, Response, ...globals,
     require(name) {
+      if (name.includes('/gemini/')) return verificationModule(`src/adapters/gemini/${name.split('/').at(-1)}.ts`, globals)
       assert.ok(name in dependencies, `Unexpected dependency ${name}`)
       return dependencies[name]
     },

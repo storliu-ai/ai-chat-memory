@@ -131,6 +131,12 @@ export interface ConversationExclusion {
 export type ConversationSaveMode = 'automatic' | 'manual'
 
 export interface ExtractedConversation {
+  /** Explicit network cross-check only; excluded from stored records and exports. */
+  networkEvidence?: import('./network-capture').RenderedMessageEvidence[]
+  /** Transient legacy DOM aliases for a source-bound Gemini share task. */
+  domMessageAliases?: string[][]
+  /** Transient evidence that this DOM window has consecutive paired slots. */
+  domWindowContiguous?: boolean
   captureSkippedSourceOrders?: number[]
   platform: Platform
   conversationId: string

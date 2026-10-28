@@ -45,6 +45,8 @@ if (permissions.length !== 1 || permissions[0] !== 'debugger') {
   throw new Error(`Unexpected extension permissions: ${permissions.join(', ')}`)
 }
 const expectedHostPermissions = [
+  'https://share.gemini.google/*',
+  'https://gemini.google.com/share/*',
   'https://lh3.googleusercontent.com/*',
   'https://lh3.google.com/*',
   'https://*.oaiusercontent.com/*',
@@ -57,7 +59,7 @@ if (
     manifest.host_permissions.includes(permission),
   )
 ) {
-  throw new Error('Only the approved AI image hosts may be requested')
+  throw new Error('Only the approved image and explicit public-share hosts may be requested')
 }
 if (manifest.action?.default_popup !== undefined) {
   throw new Error('Toolbar Action must open the independent Manager tab')
@@ -99,11 +101,12 @@ const sourceFiles = collectFiles(join(root, 'src')).filter((file) => /\.[cm]?[jt
 const attachmentCaptureFile = join(root, 'src/content/attachment-capture.ts')
 const remoteImageReaderFile = join(root, 'src/background/remote-image-reader.ts')
 const runtimeReadinessFile = join(root, 'src/background/runtime-readiness.ts')
+const geminiShareResolverFile = join(root, 'src/adapters/gemini/capture-urls.ts')
 const source = sourceFiles
   .filter((file) =>
     file !== attachmentCaptureFile &&
     file !== remoteImageReaderFile &&
-    file !== runtimeReadinessFile,
+    file !== runtimeReadinessFile && file !== geminiShareResolverFile,
   )
   .map((file) => readFileSync(file, 'utf8'))
   .join('\n')
@@ -127,12 +130,14 @@ const forbiddenMatch = forbiddenSourcePatterns.find((pattern) => pattern.test(so
 if (forbiddenMatch) {
   throw new Error(`Forbidden source API matched: ${forbiddenMatch}`)
 }
+const resolverSource = readFileSync(geminiShareResolverFile, 'utf8')
+if ((resolverSource.match(/\bfetch\s*\(/g) ?? []).length !== 1 || !resolverSource.includes("credentials: 'omit'") || !resolverSource.includes('response.body?.cancel()') || !resolverSource.includes('getGeminiShareId(canonical)') || !resolverSource.includes('8000')) throw new Error('Public Gemini short-link expansion must remain bounded, credential-free and canonical-share-only')
 const debuggerFile = join(root, 'src/background/network-debug-session.ts')
 for (const file of sourceFiles) {
   if (file !== debuggerFile && /\bchrome\.debugger\b/i.test(readFileSync(file, 'utf8'))) throw new Error('Only the bounded network debug session may access the debugger API')
 }
 const debuggerSource = readFileSync(debuggerFile, 'utf8')
-const approvedCommands = ['Page.enable', 'Page.getFrameTree', 'Network.enable', 'Network.getResponseBody']
+const approvedCommands = ['Page.enable', 'Page.getFrameTree', 'Network.enable', 'Network.getResponseBody', 'Network.streamResourceContent']
 const commands = [...debuggerSource.matchAll(/this\.command\('([^']+)'/g)].map((match) => match[1])
 const declaredCommands = [...(/const COMMANDS = \[([^\]]+)\]/.exec(debuggerSource)?.[1] ?? '').matchAll(/'([^']+)'/g)].map((match) => match[1])
 const apiMethods = [...debuggerSource.matchAll(/chrome\.debugger\.(\w+)/g)].map((match) => match[1])
@@ -236,8 +241,8 @@ if (/localhost|127\.0\.0\.1|\/@vite\/client/i.test(builtJavaScript)) {
 }
 
 const backgroundFetches = serviceWorker.match(/\bfetch\s*\(/g) ?? []
-if (backgroundFetches.length !== 2) {
-  throw new Error('The service worker may only fetch approved images and its local marker')
+if (backgroundFetches.length !== 3) {
+  throw new Error('The service worker may only fetch approved images, explicit public Gemini share expansion and its local marker')
 }
 
 console.log('dist verification passed')

@@ -1,9 +1,10 @@
 import { normalizeChatGPTShareUrl, type ChatGPTCaptureMode } from '../shared/share-capture'
 import { openDatabase, requestToPromise, STORE_NAME, transactionToPromise } from './database'
 import type { ChatGPTSaveMethod } from '../shared/network-capture'
+import { normalizeGeminiShareUrl } from '../adapters/gemini/capture-urls'
 
-export async function getConversationSaveMethod(conversationId: string): Promise<ChatGPTSaveMethod | null> {
-  const key = preferenceKey(conversationId).replace('capture-mode:', 'save-method:')
+export async function getConversationSaveMethod(conversationId: string, platform = 'chatgpt'): Promise<ChatGPTSaveMethod | null> {
+  const key = preferenceKey(conversationId, platform).replace('capture-mode:', 'save-method:')
   const database = await openDatabase()
   try {
     const transaction = database.transaction(STORE_NAME.SETTINGS, 'readonly')
@@ -15,8 +16,8 @@ export async function getConversationSaveMethod(conversationId: string): Promise
   } finally { database.close() }
 }
 
-export async function setConversationSaveMethod(conversationId: string, method: ChatGPTSaveMethod | null): Promise<ChatGPTSaveMethod | null> {
-  const key = preferenceKey(conversationId).replace('capture-mode:', 'save-method:')
+export async function setConversationSaveMethod(conversationId: string, method: ChatGPTSaveMethod | null, platform = 'chatgpt'): Promise<ChatGPTSaveMethod | null> {
+  const key = preferenceKey(conversationId, platform).replace('capture-mode:', 'save-method:')
   if (method !== null && method !== 'dom' && method !== 'network') throw new Error('Invalid save method')
   const database = await openDatabase()
   try {
@@ -27,16 +28,17 @@ export async function setConversationSaveMethod(conversationId: string, method: 
   } finally { database.close() }
 }
 
-function preferenceKey(conversationId: string): string {
+function preferenceKey(conversationId: string, platform = 'chatgpt'): string {
+  if (!['chatgpt', 'gemini'].includes(platform)) throw new Error('Invalid platform')
   if (typeof conversationId !== 'string' || !conversationId.trim() || conversationId.length > 256) {
     throw new Error('Invalid conversation ID')
   }
-  return `capture-mode:chatgpt:${conversationId}`
+  return `capture-mode:${platform}:${conversationId}`
 }
 
 /** Local preferences also apply before the first save; clearing data clears them. */
-export async function getConversationCaptureMode(conversationId: string): Promise<ChatGPTCaptureMode | null> {
-  const key = preferenceKey(conversationId)
+export async function getConversationCaptureMode(conversationId: string, platform = 'chatgpt'): Promise<ChatGPTCaptureMode | null> {
+  const key = preferenceKey(conversationId, platform)
   const database = await openDatabase()
   try {
     const transaction = database.transaction(STORE_NAME.SETTINGS, 'readonly')
@@ -50,8 +52,8 @@ export async function getConversationCaptureMode(conversationId: string): Promis
   }
 }
 
-export async function setConversationCaptureMode(conversationId: string, mode: ChatGPTCaptureMode | null): Promise<ChatGPTCaptureMode | null> {
-  const key = preferenceKey(conversationId)
+export async function setConversationCaptureMode(conversationId: string, mode: ChatGPTCaptureMode | null, platform = 'chatgpt'): Promise<ChatGPTCaptureMode | null> {
+  const key = preferenceKey(conversationId, platform)
   if (mode !== null && mode !== 'conversation' && mode !== 'share') throw new Error('Invalid capture mode')
   const database = await openDatabase()
   try {
@@ -66,8 +68,8 @@ export async function setConversationCaptureMode(conversationId: string, mode: C
 }
 
 /** Explicitly pasted links are local UI preferences, never shared/exported. */
-export async function getConversationShareLink(conversationId: string): Promise<string | null> {
-  const key = preferenceKey(conversationId).replace('capture-mode:', 'share-link:')
+export async function getConversationShareLink(conversationId: string, platform = 'chatgpt'): Promise<string | null> {
+  const key = preferenceKey(conversationId, platform).replace('capture-mode:', 'share-link:')
   const database = await openDatabase()
   try {
     const transaction = database.transaction(STORE_NAME.SETTINGS, 'readonly')
@@ -75,13 +77,13 @@ export async function getConversationShareLink(conversationId: string): Promise<
       requestToPromise<{ url?: unknown } | undefined>(transaction.objectStore(STORE_NAME.SETTINGS).get(key)),
       transactionToPromise(transaction),
     ])
-    return normalizeChatGPTShareUrl(record?.url)
+    return platform === 'gemini' ? normalizeGeminiShareUrl(record?.url) : normalizeChatGPTShareUrl(record?.url)
   } finally { database.close() }
 }
 
-export async function setConversationShareLink(conversationId: string, value: string | null): Promise<string | null> {
-  const key = preferenceKey(conversationId).replace('capture-mode:', 'share-link:')
-  const url = normalizeChatGPTShareUrl(value)
+export async function setConversationShareLink(conversationId: string, value: string | null, platform = 'chatgpt'): Promise<string | null> {
+  const key = preferenceKey(conversationId, platform).replace('capture-mode:', 'share-link:')
+  const url = platform === 'gemini' ? normalizeGeminiShareUrl(value) : normalizeChatGPTShareUrl(value)
   if (value !== null && !url) throw new Error('分享链接格式无效')
   const database = await openDatabase()
   try {

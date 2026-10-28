@@ -1,5 +1,9 @@
 import { ChatGPTAdapter } from '../adapters/chatgpt/chatgpt-adapter'
 import { ChatGPTShareAdapter } from '../adapters/chatgpt/chatgpt-share-adapter'
+import { GeminiAdapter } from '../adapters/gemini/gemini-adapter'
+import { GeminiShareAdapter } from '../adapters/gemini/gemini-share-adapter'
+import { getGeminiAccountContext, getGeminiShareId } from '../adapters/gemini/capture-urls'
+import { getGeminiCaptureBlockers, isGeminiBranchAction, isGeminiConversationSubmission } from '../adapters/gemini/capture-page-state'
 import { mergeExtractedConversations } from '../adapters/dom-scroll-collector'
 import { captureAttachments } from './attachment-capture'
 import type { ConversationAttachment, ExtractedConversation } from '../shared/models'
@@ -19,10 +23,13 @@ interface ObserverControl {
 
 /** Install before any ordinary observer starts. Only the adapter reads host DOM. */
 export async function initializeNetworkCapturePage(): Promise<{ ownedPage: boolean; bindObserver: (observer: ObserverControl) => void }> {
-  if (location.hostname !== 'chatgpt.com') return { ownedPage: false, bindObserver: () => undefined }
-  const adapter = location.pathname.startsWith('/share/') ? new ChatGPTShareAdapter() : new ChatGPTAdapter()
+  if (!['chatgpt.com', 'gemini.google.com'].includes(location.hostname)) return { ownedPage: false, bindObserver: () => undefined }
+  const gemini = location.hostname === 'gemini.google.com'
+  const platform = gemini ? 'gemini' as const : 'chatgpt' as const
+  const adapter = gemini ? getGeminiShareId(location.href) ? new GeminiShareAdapter() : new GeminiAdapter()
+    : location.pathname.startsWith('/share/') ? new ChatGPTShareAdapter() : new ChatGPTAdapter()
   const documentToken = crypto.randomUUID()
-  const base = { type: RUNTIME_MESSAGE_TYPE.NETWORK_CAPTURE, contentScriptBuildId: EXTENSION_BUILD_ID, documentToken } as const
+  const base = { type: RUNTIME_MESSAGE_TYPE.NETWORK_CAPTURE, contentScriptBuildId: EXTENSION_BUILD_ID, documentToken, platform } as const
   let observer: ObserverControl | null = null
   let boundJobId: string | undefined
   let branchRevision = 0
@@ -37,9 +44,10 @@ export async function initializeNetworkCapturePage(): Promise<{ ownedPage: boole
   const delay = (ms: number): Promise<void> => new Promise((resolve) => window.setTimeout(resolve, ms))
 
   const pageState = (): NetworkPageProbe => ({
+    platform, ...(gemini ? { accountContext: getGeminiAccountContext(location.href) ?? undefined } : {}),
     url: location.href, conversationId: adapter.getConversationId(), documentToken,
     contentScriptBuildId: EXTENSION_BUILD_ID, branchRevision,
-    blockers: getChatGPTCaptureBlockers(observer?.hasActiveCompleteCapture() ?? true),
+    blockers: (gemini ? getGeminiCaptureBlockers : getChatGPTCaptureBlockers)(observer?.hasActiveCompleteCapture() ?? true),
   })
   const apply = (response: NetworkCaptureResponse): void => {
     paused = response.paused
@@ -91,7 +99,7 @@ export async function initializeNetworkCapturePage(): Promise<{ ownedPage: boole
       else {
         while (true) {
           check()
-          capture = adapter instanceof ChatGPTShareAdapter
+          capture = adapter instanceof GeminiAdapter ? await adapter.collectNetworkConversation(progress, () => !current()) : adapter instanceof ChatGPTShareAdapter
             ? await adapter.collectShareConversation(async () => { check() }, progress)
             : await adapter.collectConversation(progress, () => !current())
           check()
@@ -113,17 +121,31 @@ export async function initializeNetworkCapturePage(): Promise<{ ownedPage: boole
         }
         if (state.networkComplete || pass === 3) break
         await foreground()
-        const next = adapter instanceof ChatGPTShareAdapter
+        const next = adapter instanceof GeminiAdapter ? await adapter.collectNetworkConversation(progress, () => !current()) : adapter instanceof ChatGPTShareAdapter
           ? await adapter.collectShareConversation(async () => { check() }, progress)
           : await adapter.collectConversation(progress, () => !current())
         check()
         if (!next?.messages.length) continue
-        const merged = mergeExtractedConversations(capture, next)
+        const merged: ExtractedConversation | null = gemini ? next : mergeExtractedConversations(capture!, next)
         if (!merged) throw new Error('连续扫描的页面消息身份或顺序冲突，未保存接口正文')
         capture = merged
       }
       check()
       if (!state.networkComplete) throw new Error('接口历史仍有缺页或游标链未接续，未保存；请重新采集')
+      if (ownedPage && adapter instanceof GeminiAdapter) {
+        const deadline = Date.now() + 20_000
+        let stable = ''
+        while (Date.now() < deadline) {
+          check()
+          const next = adapter.extractNetworkConversation()
+          const signature = JSON.stringify(next?.messages)
+          if (next && next.messages.length === state.status?.messageCount && next.networkEvidence?.length === next.messages.length / 2 && signature === stable) { capture = next; break }
+          stable = signature
+          if (document.hidden) await foreground()
+          await delay(400)
+        }
+        if (!capture || capture.messages.length !== state.status?.messageCount) throw new Error('Gemini 分享页尚未完整显示，请保持采集页可见后重试')
+      }
       // Rendered binary fallbacks stay in this document. The worker receives
       // only the DOM cross-check and attachment metadata, never their URLs/bytes.
       const proof = { ...capture, attachmentCandidates: capture.attachmentCandidates?.map((candidate) => ({ ...candidate, sourceUrl: null, renderedDataUrl: undefined })) }
@@ -183,8 +205,8 @@ export async function initializeNetworkCapturePage(): Promise<{ ownedPage: boole
       respond(pageState())
     } else if (request.type === NETWORK_PAGE_CONTEXT) {
       if (request.documentToken !== documentToken) { respond(null); return false }
-      const capture = adapter.extractConversation() ?? {
-        platform: 'chatgpt', conversationId: adapter.getConversationId(), title: adapter.getTitle(), url: location.href,
+      const capture = (adapter instanceof GeminiAdapter ? adapter.extractNetworkConversation() : adapter.extractConversation()) ?? {
+        platform, conversationId: adapter.getConversationId(), title: adapter.getTitle(), url: location.href,
         messages: adapter.getMessages(), accountIdentifier: adapter.getAccountIdentifier(), accountLabel: adapter.getAccountLabel(),
       }
       respond({ ...capture, attachmentCandidates: undefined, nativePinned: adapter.isCurrentConversationPinned() })
@@ -228,7 +250,7 @@ export async function initializeNetworkCapturePage(): Promise<{ ownedPage: boole
   }
 
   const branchAction = (event: Event): void => {
-    if (!event.isTrusted || !(event.type === 'submit' ? isChatGPTConversationSubmission(event.target) : isChatGPTBranchAction(event.target))) return
+    if (!event.isTrusted || !(event.type === 'submit' ? (gemini ? isGeminiConversationSubmission : isChatGPTConversationSubmission)(event.target) : (gemini ? isGeminiBranchAction : isChatGPTBranchAction)(event.target))) return
     branchRevision += 1
     if (boundJobId && !ownedPage) void sendRuntimeRequest({ ...base, action: 'invalidate', conversationId: adapter.getConversationId() ?? undefined, jobId: boundJobId }).then(apply).catch(() => undefined)
   }

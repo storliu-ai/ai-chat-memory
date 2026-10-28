@@ -2,6 +2,22 @@ import type { ChatGPTCaptureMode } from './share-capture'
 import type { ConversationAttachment, ExtractedConversation } from './models'
 
 export type ChatGPTSaveMethod = 'dom' | 'network'
+export type NetworkCapturePlatform = 'chatgpt' | 'gemini'
+export type CaptureEndpoint = 'initial' | 'messages' | 'share'
+export interface CaptureEndpointTarget {
+  mode: ChatGPTCaptureMode
+  id: string
+  sourceId?: string
+  platform?: NetworkCapturePlatform
+}
+
+/** Transient rendered evidence. Never put this in a saved conversation or export. */
+export interface RenderedMessageEvidence {
+  messageIndex: number
+  displayText: string
+  blocks: Array<{ language: string; content: string }>
+  inline: string[]
+}
 export type CaptureBlocker = 'draft' | 'attachment' | 'editing' | 'generating' | 'unknown' | 'busy'
 export const NETWORK_PAGE_PROBE = 'AI_CHAT_MEMORY_NETWORK_PAGE_PROBE'
 export const NETWORK_PAGE_REFRESH = 'AI_CHAT_MEMORY_NETWORK_PAGE_REFRESH'
@@ -20,6 +36,8 @@ export const CAPTURE_BLOCKERS: Record<CaptureBlocker, { short: string; detail: s
 
 /** Status only: never put URLs, response bodies, cursors or source text here. */
 export interface NetworkCaptureStatus {
+  /** Missing on older persisted jobs means ChatGPT. */
+  platform?: NetworkCapturePlatform
   id: string
   conversationId: string
   originTabId: number
@@ -45,6 +63,7 @@ export interface NetworkCaptureStatus {
 
 export interface NetworkCaptureResponse {
   status: NetworkCaptureStatus | null
+  savedConversationId?: string
   paused: boolean
   blockers?: CaptureBlocker[]
   ownedPage?: boolean
@@ -57,6 +76,9 @@ export interface NetworkCaptureResponse {
 }
 
 export interface NetworkPageProbe {
+  platform?: NetworkCapturePlatform
+  /** Rendered route's account slot, never an authentication value. */
+  accountContext?: string
   url: string
   conversationId: string | null
   documentToken: string
@@ -66,6 +88,7 @@ export interface NetworkPageProbe {
 }
 
 export interface NetworkCaptureRequest {
+  platform?: NetworkCapturePlatform
   type: 'NETWORK_CAPTURE'
   contentScriptBuildId: string
   action: 'start' | 'status' | 'pause' | 'claim' | 'finish' | 'cancel' | 'open' | 'return' | 'invalidate' | 'progress' | 'commit' | 'confirm' | 'attachments' | 'error'

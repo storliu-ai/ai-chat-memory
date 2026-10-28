@@ -1,7 +1,7 @@
 {
   "name": "ai-chat-memory",
   "private": true,
-  "version": "0.5.73",
+  "version": "0.5.75",
   "license": "GPL-3.0-only",
   "type": "module",
   "scripts": {
@@ -23,6 +23,8 @@
     "verify:chatgpt": "node scripts/verify-chatgpt-current-dom.mjs",
     "verify:chatgpt-semantic": "node scripts/verify-chatgpt-semantic-dom.mjs",
     "verify:gemini": "node scripts/verify-gemini-capture.mjs",
+    "verify:gemini-network": "node scripts/verify-gemini-network.mjs",
+    "verify:gemini-dom-share": "node scripts/verify-gemini-dom-share.mjs",
     "verify:message-time": "node scripts/verify-chatgpt-message-time.mjs",
     "verify:manager-colors": "node scripts/verify-manager-colors.mjs",
     "verify:library-filters": "node scripts/verify-library-filters.mjs",
