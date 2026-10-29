@@ -112,6 +112,7 @@ assert.equal(
 const stableSerializeModuleUrl = toDataModule(
   readSource('src/utils/stable-serialize.ts'),
 )
+const chatGPTAccountModuleUrl = toDataModule(readSource('src/shared/chatgpt-account.ts'))
 const hashJavaScript = ts.transpileModule(readSource('src/utils/hash.ts'), {
   compilerOptions: {
     module: ts.ModuleKind.ESNext,
@@ -120,13 +121,13 @@ const hashJavaScript = ts.transpileModule(readSource('src/utils/hash.ts'), {
 }).outputText.replaceAll(
   "'./stable-serialize'",
   JSON.stringify(stableSerializeModuleUrl),
-)
+).replaceAll("'../shared/chatgpt-account'", JSON.stringify(chatGPTAccountModuleUrl))
 const hashes = await import(
   `data:text/javascript;base64,${Buffer.from(hashJavaScript).toString('base64')}`
 )
 assert.equal(await hashes.createAccountId('chatgpt', '个人资料图片'), 'unknown')
 assert.equal(await hashes.createAccountId('chatgpt', 'PLUS'), 'unknown')
-assert.equal(await hashes.createAccountId('chatgpt', 'alice@example.com'), 'unknown')
+assert.match(await hashes.createAccountId('chatgpt', 'alice@example.com'), /^chatgpt:email:[a-f0-9]{64}$/)
 assert.notEqual(
   await hashes.createAccountId('gemini', 'alice@example.com'),
   await hashes.createAccountId('gemini', 'bob@example.com'),
@@ -569,8 +570,8 @@ const chatGPTAccountIdentifierSource = chatGPTAdapterSource.slice(
   chatGPTAdapterSource.indexOf('getAccountLabel()'),
 )
 assert.match(chatGPTAdapterSource, /sanitizeChatGPTAccountLabel/)
-assert.match(chatGPTAccountIdentifierSource, /identityElement\.getAttribute\('data-email'\)/)
-assert.match(chatGPTAccountIdentifierSource, /getPersistentSidebarAccountLabel/)
+assert.match(chatGPTAccountIdentifierSource, /getAccountIdentity/)
+assert.match(chatGPTAccountIdentifierSource, /normalizeChatGPTAccountEmail/)
 assert.doesNotMatch(chatGPTAccountIdentifierSource, /getAttribute\('alt'\)/)
 assert.doesNotMatch(chatGPTAccountIdentifierSource, /getAttribute\('aria-label'\)/)
 assert.match(chatGPTAdapterSource, /const accountIdentifier = this\.getAccountIdentifier\(\)/)
@@ -605,7 +606,7 @@ const conversationServiceSource = readSource(
   'src/services/conversation-service.ts',
 )
 assert.match(conversationServiceSource, /canonicalizeConversationAccount/)
-assert.match(conversationServiceSource, /CHATGPT_ACCOUNT_ID/)
+assert.match(conversationServiceSource, /isIdentifiedChatGPTAccountId/)
 assert.match(conversationServiceSource, /getConversationsBySource/)
 assert.match(conversationServiceSource, /getConversationExclusions/)
 assert.match(conversationServiceSource, /mergeConversationAttachments/)
@@ -613,12 +614,10 @@ assert.match(conversationServiceSource, /mergeConversationAttachments/)
 const migrationSource = readSource(
   'src/services/chatgpt-account-migration.ts',
 )
-assert.match(migrationSource, /conversationGroups/)
-assert.match(migrationSource, /canonicalExclusions/)
-assert.match(migrationSource, /mergeConversationAttachments/)
-assert.match(migrationSource, /accountStore\.delete/)
+assert.match(migrationSource, /normalizeChatGPTUnknownAccount/)
+assert.doesNotMatch(migrationSource, /\.delete\(|STORE_NAME\.CONVERSATIONS|STORE_NAME\.CONVERSATION_EXCLUSIONS/)
 
-assert.match(serviceWorkerSource, /await canonicalizeChatGPTAccountData\(\)/)
+assert.match(serviceWorkerSource, /await normalizeChatGPTUnknownAccount\(\)/)
 assert.match(serviceWorkerSource, /await ensureExtensionInitialized\(\)/)
 assert.match(serviceWorkerSource, /SYNC_DETECTED_ACCOUNT_LABEL/)
 assert.match(serviceWorkerSource, /notifyConversationDeleted/)

@@ -1,6 +1,7 @@
 import { BaseAdapter } from '../base-adapter'
 import type { ChatMessage, ExtractedConversation } from '../../shared/models'
 import { sanitizeChatGPTAccountLabel } from '../../shared/account-labels'
+import { normalizeChatGPTAccountEmail, type ChatGPTAccountIdentity } from '../../shared/chatgpt-account'
 import {
   CHATGPT_SELECTORS,
   CHATGPT_UNPIN_SELECTORS,
@@ -275,8 +276,42 @@ export class ChatGPTAdapter extends BaseAdapter {
   }
 
   getAccountIdentifier(): string | null {
+    return this.getAccountIdentity()?.identifier ?? null
+  }
+
+  getAccountIdentity(): ChatGPTAccountIdentity | null {
+    const emails = new Set<string>()
+    for (const root of this.getAccountProfileRoots()) {
+      for (const element of [root, ...this.queryAll(CHATGPT_SELECTORS.ACCOUNT_EMAIL, root)]) {
+        if (!this.isRenderedProfileElement(element)) continue
+        const email = normalizeChatGPTAccountEmail(element.getAttribute('data-email'))
+        if (email !== null) emails.add(email)
+      }
+    }
+    return emails.size === 1 ? { kind: 'email', identifier: [...emails][0] } : null
+  }
+
+  private getAccountProfileRoots(): Element[] {
+    const roots = this.queryAll(CHATGPT_SELECTORS.ACCOUNT_IDENTIFIER)
+    for (const trigger of this.queryAll(CHATGPT_SELECTORS.ACCOUNT_OVERLAY_TRIGGER)) {
+      const row = trigger.closest(CHATGPT_SELECTORS.ACCOUNT_OVERLAY_ROW)
+      if (row && trigger.parentElement?.querySelector('img') && !row.querySelector(CHATGPT_SELECTORS.CONVERSATION_LINK.join(','))) roots.push(row)
+    }
+    return [...new Set(roots)].filter((root) => root.closest('main, [role="main"], a[href]') === null && this.isRenderedProfileElement(root))
+  }
+
+  private isRenderedProfileElement(element: Element): boolean {
+    if (element.closest(CHATGPT_SELECTORS.INACTIVE_REGION) !== null) return false
+    for (let current: Element | null = element; current !== null; current = current.parentElement) {
+      const style = typeof window.getComputedStyle === 'function' ? window.getComputedStyle(current) : null
+      if (style?.display === 'none' || style?.visibility === 'hidden' || style?.visibility === 'collapse') return false
+    }
+    return true
+  }
+
+  getAccountLabel(): string {
     try {
-      const candidates = this.queryAll(CHATGPT_SELECTORS.ACCOUNT_IDENTIFIER)
+      const candidates = this.getAccountProfileRoots()
       for (const element of candidates) {
         const identityElements = [
           element,
@@ -287,7 +322,6 @@ export class ChatGPTAdapter extends BaseAdapter {
         ]
         for (const identityElement of identityElements) {
           for (const value of [
-            identityElement.getAttribute('data-email'),
             identityElement.getAttribute('data-user-name'),
           ]) {
             const identifier = this.normalizeIdentifier(value)
@@ -298,14 +332,10 @@ export class ChatGPTAdapter extends BaseAdapter {
         }
       }
 
-      return this.getPersistentSidebarAccountLabel()
+      return this.getPersistentSidebarAccountLabel() ?? this.getAccountIdentifier() ?? 'Unknown'
     } catch {
-      return null
+      return 'Unknown'
     }
-  }
-
-  getAccountLabel(): string {
-    return this.getAccountIdentifier() ?? 'Unknown'
   }
 
   supportsPinnedConversations(): boolean {

@@ -158,6 +158,7 @@ try {
     'verify-exclusions.mjs',
     'verify-shared-delete.mjs',
     'verify-attachments-and-account.mjs',
+    'verify-chatgpt-accounts.mjs',
     'verify-image-recapture.mjs',
     'verify-local-attachments.mjs',
     'verify-text-preview.mjs',

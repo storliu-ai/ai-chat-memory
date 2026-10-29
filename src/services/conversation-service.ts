@@ -29,6 +29,7 @@ import {
   stripConversationAttachmentData,
 } from '../shared/attachments'
 import { sanitizeChatGPTAccountLabel } from '../shared/account-labels'
+import { CHATGPT_UNKNOWN_ACCOUNT_ID, CHATGPT_UNKNOWN_ACCOUNT_LABEL, isIdentifiedChatGPTAccountId } from '../shared/chatgpt-account'
 import { createContentHash, createConversationId } from '../utils/hash'
 import {
   hasStableMessageIdentity,
@@ -38,7 +39,6 @@ import {
   startsWithAssistantMessage,
 } from '../shared/conversation-reconciliation'
 import { ensureConversationAccount } from './account-service'
-import { CHATGPT_ACCOUNT_ID } from './chatgpt-account-migration'
 import { NotFoundError } from './errors'
 
 const DEFAULT_PAGE = 1
@@ -142,12 +142,13 @@ function canonicalizeConversationAccount(
   if (payload.platform !== 'chatgpt') {
     return payload
   }
-  const label = sanitizeChatGPTAccountLabel(payload.accountLabel)
+  const identified = isIdentifiedChatGPTAccountId(payload.accountId)
+  const label = identified ? sanitizeChatGPTAccountLabel(payload.accountLabel) : ''
   return {
     ...payload,
-    accountId: CHATGPT_ACCOUNT_ID,
-    accountLabel: label || 'Unknown',
-    accountSource: label === '' ? 'unknown' : payload.accountSource,
+    accountId: identified ? payload.accountId : CHATGPT_UNKNOWN_ACCOUNT_ID,
+    accountLabel: identified ? label || 'Unknown' : CHATGPT_UNKNOWN_ACCOUNT_LABEL,
+    accountSource: identified ? payload.accountSource : 'unknown',
   }
 }
 
@@ -206,9 +207,9 @@ async function getFilteredConversations(query: ConversationQuery = {}): Promise<
 export async function saveConversation(
   payload: ConversationSavePayload,
   saveMode: ConversationSaveMode = 'automatic',
-  authorizeDomShare?: () => Promise<boolean>,
+  authorizePageCapture?: () => Promise<boolean>,
 ): Promise<ConversationSaveResult | null> {
-  return saveConversationInternal(payload, saveMode, undefined, undefined, authorizeDomShare)
+  return saveConversationInternal(payload, saveMode, undefined, undefined, authorizePageCapture)
 }
 
 /** Only the background network coordinator supplies this authority. It is not
@@ -269,9 +270,9 @@ async function saveConversationInternal(
   saveMode: ConversationSaveMode,
   authorize?: () => Promise<boolean>,
   legacyBindings?: readonly { previous: ChatMessage; sourceMessageId: string }[],
-  authorizeDomShare?: () => Promise<boolean>,
+  authorizePageCapture?: () => Promise<boolean>,
 ): Promise<ConversationSaveResult | null> {
-  if (authorizeDomShare && !await authorizeDomShare()) throw new Error('分享 DOM 保存授权已撤销')
+  if (authorizePageCapture && !await authorizePageCapture()) throw new Error('页面或账号保存授权已撤销')
   if (authorize && !await authorize()) throw new Error('接口保存授权已撤销')
   if (payload.messages.length === 0) {
     throw new Error('Incomplete conversations are not saved')
@@ -424,7 +425,7 @@ async function saveConversationInternal(
 
   if (existing !== null && existing.contentHash === contentHash) {
     if (authorize && !await authorize()) throw new Error('接口保存授权已撤销')
-    if (authorizeDomShare && !await authorizeDomShare()) throw new Error('分享 DOM 保存授权已撤销')
+    if (authorizePageCapture && !await authorizePageCapture()) throw new Error('页面或账号保存授权已撤销')
     if (saveMode === 'manual' || existingWithMetadata !== existing) {
       const saved = await putConversationWithExclusionPolicy(
         existingWithMetadata ?? existing,
@@ -462,7 +463,7 @@ async function saveConversationInternal(
   }
 
   if (authorize && !await authorize()) throw new Error('接口保存授权已撤销')
-  if (authorizeDomShare && !await authorizeDomShare()) throw new Error('分享 DOM 保存授权已撤销')
+  if (authorizePageCapture && !await authorizePageCapture()) throw new Error('页面或账号保存授权已撤销')
   const saved = await putConversationWithExclusionPolicy(conversation, saveMode)
   return saved === null ? null : { conversation: saved, changed: true }
 }
@@ -485,8 +486,9 @@ export async function supplementVerifiedNetworkAttachments(
 export async function hasSavedConversation(
   platform: Conversation['platform'],
   conversationId: string,
+  accountId?: string,
 ): Promise<boolean> {
-  return (await getConversationsBySource(platform, conversationId)).length > 0
+  return await getSavedConversationBySource(platform, conversationId, accountId) !== null
 }
 
 export async function getSavedConversationBySource(
@@ -494,7 +496,8 @@ export async function getSavedConversationBySource(
   conversationId: string,
   accountId?: string,
 ): Promise<Conversation | null> {
-  const conversations = (await getConversationsBySource(platform, conversationId)).filter((conversation) => accountId === undefined || conversation.accountId === accountId)
+  const scopedAccountId = accountId ?? (platform === 'chatgpt' ? CHATGPT_UNKNOWN_ACCOUNT_ID : undefined)
+  const conversations = (await getConversationsBySource(platform, conversationId)).filter((conversation) => scopedAccountId === undefined || conversation.accountId === scopedAccountId)
   const preferred = conversations.reduce<Conversation | null>(
     (current, candidate) => {
       if (current === null || candidate.updatedAt > current.updatedAt) {
@@ -582,11 +585,8 @@ export async function updateConversationPinnedBySource(
   conversationId: string,
   pinned: boolean,
 ): Promise<Conversation[]> {
-  const canonicalAccountId = platform === 'chatgpt'
-    ? CHATGPT_ACCOUNT_ID
-    : accountId
   const matches = (await getConversationsBySource(platform, conversationId))
-    .filter((conversation) => conversation.accountId === canonicalAccountId)
+    .filter((conversation) => conversation.accountId === accountId)
   const changed = matches
     .filter((conversation) => conversation.pinned !== pinned)
     .map((conversation) => ({ ...conversation, pinned }))

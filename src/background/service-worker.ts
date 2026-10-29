@@ -63,7 +63,8 @@ import {
   type ConversationDeletedContentEvent,
 } from '../shared/content-events'
 import { getLibraryView } from '../services/library-service'
-import { canonicalizeChatGPTAccountData } from '../services/chatgpt-account-migration'
+import { normalizeChatGPTUnknownAccount } from '../services/chatgpt-account-migration'
+import { isChatGPTPageAccountCurrent } from './page-account'
 import { migrateImportantOnlyFilePermissions } from '../services/file-permission-migration'
 import {
   applyPendingSharedDeletions,
@@ -224,10 +225,7 @@ async function dispatchRuntimeRequest(
       try {
         const response = await handleNetworkCapture(request, sender)
         if (request.action === 'commit' || request.action === 'attachments' || request.action === 'confirm') {
-          const saved = response.savedConversationId ? await getConversationById(response.savedConversationId)
-            : request.platform === 'gemini' ? null
-              : request.conversationId ? await getSavedConversationBySource('chatgpt', request.conversationId)
-                : response.status ? await getSavedConversationBySource('chatgpt', response.status.conversationId) : null
+          const saved = response.savedConversationId ? await getConversationById(response.savedConversationId) : null
           if (saved) {
             await mirrorSafely('network capture', async () => { await mirrorLocalConversation(saved); await mirrorLocalAccounts() })
             notifyConversationUpdated(saved.id)
@@ -307,7 +305,9 @@ async function dispatchRuntimeRequest(
         const result = await saveConversation(
           payload,
           request.saveMode ?? 'automatic',
-          payload.supplementOnly ? () => isShareSaveAuthorized(sender, payload.conversationId, payload.platform, payload.accountId) : undefined,
+          payload.platform === 'chatgpt' || payload.supplementOnly ? async () =>
+            (payload.platform !== 'chatgpt' || await isChatGPTPageAccountCurrent(sender, payload.conversationId, payload.accountId)) &&
+            (!payload.supplementOnly || await isShareSaveAuthorized(sender, payload.conversationId, payload.platform, payload.accountId)) : undefined,
         )
         if (result === null) {
           return runtimeSuccess(null)
@@ -349,25 +349,29 @@ async function dispatchRuntimeRequest(
     case RUNTIME_MESSAGE_TYPE.GET_SAVED_CONVERSATION:
       if (
         !SUPPORTED_PLATFORMS.includes(request.platform) ||
-        !isNonEmptyString(request.conversationId)
+        !isNonEmptyString(request.conversationId) ||
+        (request.accountId !== undefined && (!isNonEmptyString(request.accountId) || request.accountId.length > 128))
       ) {
         return runtimeFailure('INVALID_REQUEST', 'Invalid conversation identity')
       }
       return runtimeSuccess(await getSavedConversationBySource(
         request.platform,
         request.conversationId,
+        request.accountId,
       ))
 
     case RUNTIME_MESSAGE_TYPE.HAS_SAVED_CONVERSATION:
       if (
         !SUPPORTED_PLATFORMS.includes(request.platform) ||
-        !isNonEmptyString(request.conversationId)
+        !isNonEmptyString(request.conversationId) ||
+        (request.accountId !== undefined && (!isNonEmptyString(request.accountId) || request.accountId.length > 128))
       ) {
         return runtimeFailure('INVALID_REQUEST', 'Invalid conversation identity')
       }
       return runtimeSuccess(await hasSavedConversation(
         request.platform,
         request.conversationId,
+        request.accountId,
       ))
 
     case RUNTIME_MESSAGE_TYPE.SEARCH_CONVERSATIONS:
@@ -698,7 +702,7 @@ function ensureExtensionInitialized(): Promise<void> {
       await Promise.all([initializeSettings(), getLocalEnvironment()])
       await initializeShareCaptureJobs()
       await initializeNetworkCaptureJobs()
-      const accountMigration = await canonicalizeChatGPTAccountData()
+      const accountMigration = await normalizeChatGPTUnknownAccount()
       await receiveSharedDeletions()
       if (filePermissionMigration.changed || accountMigration.changed) {
         await mirrorSafely(

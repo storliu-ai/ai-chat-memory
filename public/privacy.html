@@ -30,7 +30,7 @@
       <p>本项目是独立工具，与 OpenAI、Google 和 DeepSeek 无官方隶属关系。本政策不替代这些网站、浏览器、应用商店或你选择的文件同步服务各自的隐私政策。</p>
       <h3>处理哪些数据，以及为什么处理</h3>
       <p>对话数据：当前打开对话的标题、正文、角色、原页面地址、平台、对话与消息标识、顺序，以及页面真正暴露的消息时间。仅在相关设置或明确采集操作允许时保存；不遍历账号的远程历史列表。</p>
-      <p>账户与本地管理数据：页面显示的名称、可能显示的 Gemini 邮箱或账户槽位、用户手动填写的标签、重要标记、置顶证据、排除记录和附件权限，用于区分和管理本地记录，不用于身份画像或广告。</p>
+      <p>账户与本地管理数据：页面显示的名称、ChatGPT 账号控件明确提供的邮箱、可能显示的 Gemini 邮箱或账户槽位、用户手动填写的标签、重要标记、置顶证据、排除记录和附件权限，用于区分和管理本地记录，不用于身份画像或广告。ChatGPT 仅在账号控件提供唯一邮箱时用其规范化哈希独立分组；没有可靠依据时保留未识别分组，不按姓名猜测身份或将历史未识别记录自动归给当前账号。邮箱也可能作为本地账户标签保留。</p>
       <p>附件数据：对话中渲染的图片、文件名、类型、大小、保存状态，以及在权限和大小限制内保存的文件副本。你手动选择的同名本地文件，仅用于补齐相应已有附件，不扫描电脑上的其他文件。</p>
       <p>设置与任务数据：自动保存和平台开关、采集偏好、手动粘贴的分享链接、界面设置、随机生成的本地环境标识、环境名称、用户选择的目录句柄，以及采集任务标识、标签页标识、进度、计数、结果和错误状态。环境标识用于隔离本地目录，不用于跨网站追踪。</p>
       <p>未发送草稿和待发送附件状态用于判断接口采集是否可以安全刷新；编辑和生成状态还用于完整 DOM 采集的就绪检查。这些状态不作为对话记录保存。搜索在本地执行，不上传搜索词。</p>
@@ -80,7 +80,7 @@
       <p>This is an independent project with no official affiliation with OpenAI, Google, or DeepSeek. This policy does not replace the separate policies of those websites, your browser, an extension store, or any file synchronization service you choose.</p>
       <h3>Data processed and its purposes</h3>
       <p>Conversation data: the open conversation's title, text, roles, source URL, platform, conversation/message identifiers, ordering, and genuine message times exposed by the page. Data is saved only when the relevant settings or an explicit capture action permit it; remote account history is not enumerated.</p>
-      <p>Account and local management data: displayed names, a displayed Gemini email address or account slot where available, manually entered labels, importance, native pin evidence, exclusions, and attachment permissions. These distinguish and manage local records, not advertising profiles.</p>
+      <p>Account and local management data: displayed names, an email explicitly exposed by the ChatGPT profile control, a displayed Gemini email address or account slot where available, manually entered labels, importance, native pin evidence, exclusions, and attachment permissions. These distinguish and manage local records, not advertising profiles. ChatGPT creates a separate group only from a normalized hash of one unambiguous profile email. Without reliable evidence it retains an unidentified group, without inferring identity from names or automatically assigning historical unidentified records to the current login. An email may also remain as a local account label.</p>
       <p>Attachment data: rendered conversation images, filenames, types, sizes, save status, and file copies within permission and size limits. A same-named local file that you explicitly select is used only to supplement its existing attachment; other files on your computer are not scanned.</p>
       <p>Settings and task data: automatic-save/platform switches, capture preferences, pasted share links, display settings, a randomly generated local environment identifier, its name, a directory handle chosen by you, and capture/task/tab identifiers, progress, counts, results, and error status. Environment identifiers separate local directory mirrors and are not used for cross-site tracking.</p>
       <p>Unsent drafts and pending attachments are checked to decide whether network capture may safely refresh. Editing and generation states also guard complete DOM captures. These states are not saved as conversation records. Search runs locally and search terms are not uploaded.</p>

@@ -17,7 +17,7 @@ assert.match(exclusionSource, /conversation\.pinned === true/)
 assert.match(exclusionSource, /exclusionStore\.delete\(id\)/)
 assert.match(
   exclusionSource,
-  /exclusion !== undefined && saveMode === 'automatic'/,
+  /exclusion !== undefined \|\| legacyExclusion !== undefined && existing === undefined/,
 )
 assert.match(exclusionSource, /saveMode === 'manual'/)
 assert.match(

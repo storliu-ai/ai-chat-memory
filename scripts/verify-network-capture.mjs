@@ -362,7 +362,7 @@ function coordinatorHarness({ stored = [], ownership = true, saving = false } = 
       updateConversationFileAttachmentPermission: async () => savedRecord, updateConversationImageAttachmentPermission: async () => savedRecord,
     },
     '../services/validation': { isChatMessage: () => true, hasValidConversationAttachments: () => true },
-    '../utils/hash': { createContentHash: async () => 'a'.repeat(64), createAccountId: async () => 'unknown' },
+    '../utils/hash': { createContentHash: async () => 'a'.repeat(64), createAccountId: verificationModule('src/utils/hash.ts').createAccountId },
     './runtime-readiness': { getCaptureReadiness: async () => ({ ready: true }) },
     '../db/network-capture-jobs': { readNetworkCaptureJobs: async () => [...statuses.values()], putNetworkCaptureJob: async (status) => { statuses.set(status.originTabId, structuredClone(status)) }, deleteNetworkCaptureJob: async (id) => { statuses.delete(id) } },
     '../shared/build-id': { EXTENSION_BUILD_ID: 'test-build' }, '../shared/network-capture': shared, '../shared/share-capture': share,
@@ -585,7 +585,7 @@ assert.equal(harness.writes[0].payload.messages[1].contentSource, undefined)
 assert.equal(harness.writes.length, 1, 'Exceptional saving does not copy attachments')
 await assert.rejects(() => harness.action('confirm', { jobId: started.status.id }), /已失效/)
 
-for (const revoke of ['cancel', 'branch', 'delete', 'restart']) {
+for (const revoke of ['cancel', 'branch', 'delete', 'restart', 'account']) {
   harness = coordinatorHarness({ saving: true })
   started = await harness.start('conversation', 'save'); await tick()
   const response = await harness.sourceAction('error', { jobId: started.status.id, capture: harness.capture, error: 'Synthetic missing pagination' })
@@ -593,6 +593,7 @@ for (const revoke of ['cancel', 'branch', 'delete', 'restart']) {
   if (revoke === 'cancel') await harness.action('cancel', { jobId: started.status.id })
   if (revoke === 'branch') harness.states.get(1).branchRevision += 1
   if (revoke === 'delete') await harness.coordinator.cancelNetworkCaptureJobs('synthetic-source')
+  if (revoke === 'account') harness.capture.accountIdentifier = 'bob@example.com'
   if (revoke === 'restart') {
     harness = coordinatorHarness({ stored: [...harness.statuses.values()], saving: true })
     await harness.coordinator.initializeNetworkCaptureJobs()

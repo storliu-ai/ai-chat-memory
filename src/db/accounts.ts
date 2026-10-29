@@ -1,8 +1,12 @@
 import type { Account } from '../shared/models'
 import { isLegacyChatGPTProfileLabel } from '../shared/account-labels'
+import { CHATGPT_UNKNOWN_ACCOUNT_ID, CHATGPT_UNKNOWN_ACCOUNT_LABEL } from '../shared/chatgpt-account'
 import { openDatabase, requestToPromise, STORE_NAME, transactionToPromise } from './database'
 
 function normalizeAccount(account: Account): Account {
+  if (account.platform === 'chatgpt' && account.id === CHATGPT_UNKNOWN_ACCOUNT_ID && account.source !== 'manual') {
+    return { ...account, label: CHATGPT_UNKNOWN_ACCOUNT_LABEL, source: 'unknown' }
+  }
   if (
     account.platform === 'chatgpt' &&
     account.source !== 'manual' &&

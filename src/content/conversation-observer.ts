@@ -127,8 +127,8 @@ function isSuccessfulSaveReconciliation(
   )
 }
 
-function accumulatedCaptureKey(platform: Conversation['platform'], conversationId: string): string {
-  return `${platform}:${conversationId}`
+function accumulatedCaptureKey(platform: Conversation['platform'], conversationId: string, accountIdentifier: string | null = null): string {
+  return JSON.stringify([platform, conversationId, accountIdentifier])
 }
 
 function candidateKey(candidate: ExtractedAttachmentCandidate): string {
@@ -166,7 +166,7 @@ function mergeAccumulatedCapture(
   previous: AccumulatedCapture | undefined,
   incoming: ExtractedConversation,
 ): AccumulatedCapture | null {
-  if (previous === undefined) {
+  if (previous === undefined || previous.accountIdentifier !== incoming.accountIdentifier) {
     return { ...incoming, observedAt: Date.now() }
   }
   if (
@@ -273,7 +273,8 @@ export class ConversationObserver {
     const abort = new AbortController()
     this.shareAbort = abort
     const generation = this.generation
-    const current = (): boolean => !abort.signal.aborted && !this.destroyed && generation === this.generation && adapter.getConversationId() === id
+    const accountIdentifier = adapter.getAccountIdentifier()
+    const current = (): boolean => !abort.signal.aborted && !this.destroyed && generation === this.generation && adapter.getConversationId() === id && adapter.getAccountIdentifier() === accountIdentifier
     let jobId: string | undefined
     let savedSuccessfully = false
     let readyToSave = false
@@ -302,7 +303,7 @@ export class ConversationObserver {
         }
       if (source.platform !== platform || source.conversationId !== id) throw new Error('原对话已切换，请重新打开对应对话的面板')
       if (source.messages.length === 0 && platform === 'chatgpt') {
-        const local = await sendRuntimeRequest({ type: RUNTIME_MESSAGE_TYPE.GET_SAVED_CONVERSATION, platform: 'chatgpt', conversationId: id })
+        const local = await sendRuntimeRequest({ type: RUNTIME_MESSAGE_TYPE.GET_SAVED_CONVERSATION, accountId: await this.getCurrentAccountId(), platform: 'chatgpt', conversationId: id })
         if (!current()) throw new Error('采集已取消或原对话已切换')
         if (local?.platform === 'chatgpt' && local.conversationId === id && local.messages.length > 0) source = { ...source, title: local.title, messages: local.messages }
       }
@@ -333,7 +334,7 @@ export class ConversationObserver {
       if (!saved || !current()) throw new Error('分享已完整读取，但原对话保存未确认，请重试')
       const verified = platform === 'gemini'
         ? await sendRuntimeRequest({ type: RUNTIME_MESSAGE_TYPE.GET_CONVERSATION, id: saved.id })
-        : await sendRuntimeRequest({ type: RUNTIME_MESSAGE_TYPE.GET_SAVED_CONVERSATION, platform, conversationId: id })
+        : await sendRuntimeRequest({ type: RUNTIME_MESSAGE_TYPE.GET_SAVED_CONVERSATION, accountId: await this.getCurrentAccountId(), platform, conversationId: id })
       if (!current() || !verified || verified.id !== saved.id || verified.contentHash !== saved.contentHash) throw new Error('保存后的本地副本已变化或任务已取消，请重新核对')
       const released = await sendRuntimeRequest({ ...base, action: 'release', jobId })
       if (released.status?.phase !== 'complete') throw new Error('任务已取消，未确认本次分享保存')
@@ -395,6 +396,7 @@ export class ConversationObserver {
   private completeCaptureTask: CompleteCaptureTask | null = null
   private currentConversationSaved: boolean | null = null
   private lastSyncedAccountSignature = ''
+  private lastObservedAccountIdentifier: string | null = null
   private lastAccountSyncSignature = ''
   private lastAccountSyncAttemptAt = 0
   private debounceTimer: number | null = null
@@ -551,6 +553,7 @@ export class ConversationObserver {
           try {
             localHistoryKnown = await sendRuntimeRequest({
               type: RUNTIME_MESSAGE_TYPE.HAS_SAVED_CONVERSATION,
+              accountId: await this.getCurrentAccountId(),
               platform: this.adapter.platform,
               conversationId: currentConversationId,
             })
@@ -684,6 +687,7 @@ export class ConversationObserver {
     expectedGeneration: number,
   ): Promise<CompleteCaptureResult> {
     const adapter = this.adapter
+    const expectedAccountIdentifier = adapter?.getAccountIdentifier() ?? null
     if (
       adapter === null ||
       this.destroyed ||
@@ -721,10 +725,12 @@ export class ConversationObserver {
           }
           this.notifyLiveStateChanged()
         }
-      }, () => this.destroyed || expectedGeneration !== this.generation || this.adapter !== adapter || adapter.getConversationId() !== expectedConversationId || this.shareAbort?.signal.aborted === true)
+      }, () => this.destroyed || expectedGeneration !== this.generation || this.adapter !== adapter || adapter.getConversationId() !== expectedConversationId || adapter.getAccountIdentifier() !== expectedAccountIdentifier || this.shareAbort?.signal.aborted === true)
       if (
         complete === null ||
         complete.conversationId !== expectedConversationId ||
+        complete.accountIdentifier !== expectedAccountIdentifier ||
+        adapter.getAccountIdentifier() !== expectedAccountIdentifier ||
         expectedGeneration !== this.generation ||
         adapter.getConversationId() !== expectedConversationId
       ) {
@@ -781,6 +787,7 @@ export class ConversationObserver {
       }
       const localConversation = await sendRuntimeRequest({
         type: RUNTIME_MESSAGE_TYPE.GET_SAVED_CONVERSATION,
+        accountId: await this.getCurrentAccountId(),
         platform: this.adapter.platform,
         conversationId: expectedConversationId,
       })
@@ -810,7 +817,7 @@ export class ConversationObserver {
     const conversationId = this.adapter?.getConversationId() ?? null
     return conversationId === null || this.adapter === null
       ? { platform: null, conversationId: null }
-      : { platform: this.adapter.platform, conversationId }
+      : { platform: this.adapter.platform, conversationId, accountIdentifier: this.adapter.getAccountIdentifier() }
   }
 
   getCurrentConversationLiveState(): HostConversationLiveState {
@@ -879,7 +886,7 @@ export class ConversationObserver {
     // removes both persistent copies and the in-memory capture copy.
     this.attachmentCache.clear()
     this.accumulatedCaptures.delete(
-      accumulatedCaptureKey(platform, conversationId),
+      accumulatedCaptureKey(platform, conversationId, this.adapter?.getAccountIdentifier()),
     )
     this.currentConversationSaved = false
     this.setSyncStatus('observing')
@@ -1218,7 +1225,7 @@ export class ConversationObserver {
     ) {
       return
     }
-    const key = accumulatedCaptureKey(extracted.platform, conversationId)
+    const key = accumulatedCaptureKey(extracted.platform, conversationId, extracted.accountIdentifier)
     const merged = mergeAccumulatedCapture(
       this.accumulatedCaptures.get(key),
       extracted,
@@ -1244,7 +1251,7 @@ export class ConversationObserver {
     conversationId: string,
   ): AccumulatedCapture | null {
     return this.accumulatedCaptures.get(
-      accumulatedCaptureKey(platform, conversationId),
+      accumulatedCaptureKey(platform, conversationId, this.adapter?.getAccountIdentifier()),
     ) ?? null
   }
 
@@ -1275,6 +1282,12 @@ export class ConversationObserver {
     if (this.adapter === null) {
       return
     }
+    const currentIdentifier = this.adapter.getAccountIdentifier()
+    if (currentIdentifier !== this.lastObservedAccountIdentifier) {
+      this.lastObservedAccountIdentifier = currentIdentifier
+      this.shareAbort?.abort()
+      this.handleConversationLocation()
+    }
     if (this.observedSidebar?.isConnected) {
       void this.syncDetectedAccountLabel()
       return
@@ -1293,9 +1306,14 @@ export class ConversationObserver {
       this.runSafely(() => {
         this.refreshPinnedState()
         void this.syncDetectedAccountLabel()
-        // ChatGPT may render the persistent account label only after its
-        // sidebar has settled. Re-run the debounced save so an existing
-        // canonical account can replace an earlier "Unknown" display label.
+        // Identity may arrive after the sidebar settles. Never reuse another
+        // account's saved-state decision or attachment retry cache.
+        const identifier = this.adapter?.getAccountIdentifier() ?? null
+        if (identifier !== this.lastObservedAccountIdentifier) {
+          this.lastObservedAccountIdentifier = identifier
+          this.shareAbort?.abort()
+          this.handleConversationLocation()
+        }
         this.scheduleExtraction()
       })
     })
@@ -1306,6 +1324,8 @@ export class ConversationObserver {
       characterData: true,
       attributeFilter: [
         'aria-label',
+        'data-email',
+        'data-user-name',
         'aria-current',
         'class',
         'data-icon',
@@ -1388,12 +1408,13 @@ export class ConversationObserver {
     } = request
     const respectAutoSave = trigger !== 'manual'
     const requireRevisionMatch = trigger === 'passive'
+    const expectedAccountIdentifier = this.adapter?.getAccountIdentifier() ?? null
     const captureIsCurrent = (): boolean => this.isCaptureCurrent(
       scheduledGeneration,
       expectedConversationId,
       scheduledCaptureRevision,
       requireRevisionMatch,
-    ) && !(request.supplementOnly && this.shareAbort?.signal.aborted)
+    ) && this.adapter?.getAccountIdentifier() === expectedAccountIdentifier && !(request.supplementOnly && this.shareAbort?.signal.aborted)
     try {
       if (!captureIsCurrent()) {
         return null
@@ -1447,6 +1468,7 @@ export class ConversationObserver {
       ) {
         const alreadySaved = await sendRuntimeRequest({
           type: RUNTIME_MESSAGE_TYPE.HAS_SAVED_CONVERSATION,
+          accountId: await this.getCurrentAccountId(),
           platform: adapter.platform,
           conversationId: expectedConversationId,
         })
@@ -1481,6 +1503,7 @@ export class ConversationObserver {
         extracted.messages.length === 0 ||
         afterId !== beforeId ||
         extracted.conversationId !== expectedConversationId ||
+        extracted.accountIdentifier !== expectedAccountIdentifier ||
         !captureIsCurrent()
       ) {
         if (captureIsCurrent()) {
@@ -1504,6 +1527,7 @@ export class ConversationObserver {
       if (pinnedOnly && !pinnedEvidence) {
         const alreadySaved = await sendRuntimeRequest({
           type: RUNTIME_MESSAGE_TYPE.HAS_SAVED_CONVERSATION,
+          accountId: await this.getCurrentAccountId(),
           platform: extracted.platform,
           conversationId: extracted.conversationId,
         })
@@ -1681,7 +1705,7 @@ export class ConversationObserver {
   private accumulateExtractedConversation(
     extracted: ExtractedConversation,
   ): AccumulatedCapture {
-    const key = accumulatedCaptureKey(extracted.platform, extracted.conversationId)
+    const key = accumulatedCaptureKey(extracted.platform, extracted.conversationId, extracted.accountIdentifier)
     const previous = this.accumulatedCaptures.get(key)
     const merged = mergeAccumulatedCapture(
       previous,
@@ -1863,6 +1887,11 @@ export class ConversationObserver {
     }
   }
 
+  private getCurrentAccountId(): Promise<string> {
+    if (this.adapter === null) throw new Error('当前页面没有可采集的对话')
+    return createAccountId(this.adapter.platform, this.adapter.getAccountIdentifier())
+  }
+
   private async syncDetectedAccountLabel(): Promise<void> {
     if (this.adapter === null) {
       return
@@ -2019,6 +2048,7 @@ export class ConversationObserver {
     if (alreadySaved === null) {
       alreadySaved = await sendRuntimeRequest({
         type: RUNTIME_MESSAGE_TYPE.HAS_SAVED_CONVERSATION,
+        accountId: await this.getCurrentAccountId(),
         platform: adapter.platform,
         conversationId,
       })
@@ -2104,6 +2134,7 @@ export class ConversationObserver {
       }
       const saved = await sendRuntimeRequest({
         type: RUNTIME_MESSAGE_TYPE.HAS_SAVED_CONVERSATION,
+        accountId: await this.getCurrentAccountId(),
         platform: context.platform,
         conversationId: context.conversationId,
       })

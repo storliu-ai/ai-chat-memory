@@ -83,9 +83,8 @@ export const CHATGPT_SELECTORS = {
   ACCOUNT_IDENTIFIER: [
     '[data-testid="accounts-profile-button"]',
     '[data-testid="profile-button"]',
-    'img[data-email]',
-    'img[data-user-name]',
   ],
+  ACCOUNT_EMAIL: ['[data-email]'],
   ACCOUNT_PROFILE_TRIGGER: [
     '[data-testid="accounts-profile-button"]',
     '[data-testid="profile-button"]',

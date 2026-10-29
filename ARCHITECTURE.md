@@ -813,26 +813,51 @@ random identifier.
 - Indexes: `platform`, `updatedAt`
 
 Accounts are labels and filter values only. They are not parent stores or login
-sessions. Detected account IDs hash both platform and identifier. ChatGPT always
-uses its legacy `unknown` ID because its rendered profile control does not expose
-a stable login identifier; UI strings such as plan names and avatar alt text must
-never form a key. Other platforms use platform-scoped unknown IDs so missing
-identities cannot collide. Gemini prefers a rendered email and falls back to the
-active Google multi-login slot.
+sessions. Gemini and DeepSeek hash the platform and detected identifier, falling
+back to platform-scoped unknown IDs when no identifier is available. Gemini
+prefers a rendered email and falls back to the active Google multi-login slot.
 
-ChatGPT uses an explicit rendered email/name or the dedicated name node inside
-the persistent bottom-left profile control only as a friendly label. The current
-structural fallback accepts its `truncate`/marquee node even when the button test
-ID is absent, but excludes main content and `/c/` conversation rows. The name
-need not be inside the button: the current sidebar row's empty
-profile-menu overlay is bound to its sibling dedicated name and avatar. The
-plan and upgrade line is excluded, and ambiguous names fail closed. It does not
-open the profile menu and rejects profile actions, avatar descriptions, and plan
-names such as
-`ChatGPT 打开个人资料`, `个人资料图片`, and `PLUS`. On startup, legacy ChatGPT accounts,
-conversations, and exclusion tombstones are canonicalized to the single stable
-key. Duplicate copies of one remote conversation are merged without losing the
-important mark, file permission, or saved attachment data.
+ChatGPT separates identity evidence from display labels. `getAccountIdentity()`
+returns `{ kind: 'email', identifier }` only when the active profile control or
+its structurally bound sidebar row exposes one unambiguous `data-email` value.
+Controls inside main content, conversation links, inactive or hidden regions do
+not supply identity. Conflicting emails fail closed. No profile menu is opened,
+and no private API, bootstrap data, authentication storage or response supplies
+account identity. `getAccountIdentifier()` returns that email or null; sidebar
+names, avatar descriptions and subscription labels cannot become identifiers.
+
+A recognized email is normalized and hashed into
+`chatgpt:email:<SHA-256("chatgpt:email:" + normalizedEmail)>`. Display-name
+changes do not change that key. Without reliable email evidence, new captures
+retain the legacy `unknown` key, with `source: 'unknown'` and the label
+`未识别账号`; manual labels remain intact. Names can still be extracted as
+friendly page labels, but they never relabel the entire unknown group.
+Name-only layouts therefore still cannot isolate multiple ChatGPT logins.
+
+Saving, source lookups, pin updates, the current panel, page-local accumulated
+windows and attachment retry caches are scoped to the current account. DOM
+collection and share/network authorization reject changed account evidence.
+If evidence disappears, an identified record is not looked up through another
+group or moved into unknown; an unidentified capture can create or update only
+the unknown group. Separate browser profiles retain independent databases.
+
+Startup only normalizes the nonmanual unknown account label and source; it
+does not merge accounts, rekey conversations or rewrite exclusions. JSON import
+and shared-directory reading preserve both new identified keys and historical
+distinct keys. Historical unknown ownership cannot be reconstructed, so those
+records remain in that group even when an identified recapture creates a
+separate copy. Attachments, importance, permissions, pending state, exclusions
+and manual labels are retained. An old unknown exclusion conservatively blocks
+first automatic insertion under a newly detected account; manual saving may
+restore that identified record, allowing subsequent updates without attributing
+the historical tombstone to a login.
+
+The persistent bottom-left profile control supplies a friendly name separately
+from identity. Structural fallbacks accept dedicated truncate/marquee nodes and
+sibling names beside an empty profile-menu overlay, excluding plan/upgrade text,
+main content and conversation rows. Profile actions, avatar descriptions and
+generic labels such as `个人资料图片` and `PLUS` are rejected.
+
 The same initialization phase converts the removed legacy `important-only` file
 policy to `per-conversation`: conversations already marked important receive an
 explicit file permission so their former effective access is preserved, while

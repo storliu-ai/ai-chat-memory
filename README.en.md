@@ -1,12 +1,15 @@
 # AI Chat Memory
 
+**Local ChatGPT, Gemini & DeepSeek conversation backup · Offline search · Markdown / JSON export**
+
 [简体中文](README.md) | **English**
 
-Keep the AI conversations you browse on your own device, ready to search, organize, and export offline.
+[Install the extension](#installation) · [Quick start](#quick-start) · [Platform support](#platform-support) · [Privacy policy](PRIVACY.md)
 
-AI Chat Memory is a Manifest V3 Chrome extension built with TypeScript, React, and Vite.
-It supports ChatGPT, Gemini, and DeepSeek, saves the current conversation according to your settings,
-and provides a separate conversation manager. Records live in the current browser profile's IndexedDB.
+AI Chat Memory (`ai-chat-memory`) is a Chrome / Chromium extension that saves the ChatGPT, Gemini,
+and DeepSeek chats you are currently browsing, so you can find them offline, organize them, and export
+them as Markdown or JSON. Search and read saved conversations in a separate manager; records live
+in the current browser profile's IndexedDB.
 
 Everyday use requires no API key, Node.js, or local server. The project operates no backend,
 telemetry, or cloud synchronization. An optional shared directory requires your explicit authorization.
@@ -14,6 +17,15 @@ telemetry, or cloud synchronization. An optional shared directory requires your 
 > Automatic saving is enabled by default, but **first-time automatic collection requires reliable
 > evidence that the conversation is natively pinned**. You can manually capture unpinned conversations.
 > The extension does not enumerate or bulk-download your account's remote conversation history.
+> Ordinary automatic updates depend on rendered content. For long ChatGPT / Gemini conversations,
+> use manual complete capture and check the result.
+
+```mermaid
+flowchart LR
+  A["Current ChatGPT / Gemini / DeepSeek conversation"] -->|"Capture according to settings"| B["Local IndexedDB"]
+  B --> C["Offline search and organization"]
+  B --> D["Markdown / JSON export"]
+```
 
 ## Features
 
@@ -53,6 +65,13 @@ not every attachment can be copied.
 
 Requires Chrome / Chromium 118 or later. Dedicated validation of the declared Chrome 118 minimum
 and compatibility across different computers has not been completed.
+
+| What you have | Next step |
+| --- | --- |
+| A built `ai-chat-memory-<version>.zip` | Follow "Use an existing package" below; no Node.js required |
+| Source downloaded from GitHub or a Git clone | Follow "Build from source" below to create `dist/`; requires Node.js 22 and npm |
+
+GitHub's **Code → Download ZIP** downloads source code, which cannot be loaded directly as a built extension package.
 
 ### Use an existing package
 
@@ -190,7 +209,8 @@ whether to place them in a third-party synchronization folder.
 
 It does not read authentication cookies, tokens, or credential stores, scan other remote conversations,
 automatically click host controls, or inject remote code. Account labels may come from displayed names;
-Gemini may also use a displayed email address to separate accounts. These remain local: redact them in bug reports.
+ChatGPT separates accounts only when its profile control exposes one unambiguous email, using a normalized hash;
+Gemini may also use a displayed email address. These remain local: redact them in bug reports.
 
 ### Why these permissions exist
 
@@ -243,11 +263,17 @@ connection and mirrors its empty state. Back up important records as JSON first.
 | Network capture stops | Check drafts, attachments, and generation; close conflicting DevTools and start again |
 | An attachment has a name but no downloadable copy | Check permissions, accessibility, and limits; recapture or supplement an ordinary file locally |
 | Version mismatch after updating | Reload the extension, then refresh already-open AI tabs |
+| ChatGPT shows a name but is still grouped as an unidentified account | Names are display labels only. A separate group requires one unambiguous email from the profile control. Without that evidence, storage retains `unknown` and does not infer ownership from names; separate browser profiles provide isolation |
 | A message has no time | Only genuine source times are kept; capture, import, and synchronization times are not substituted |
 
 ChatGPT currently exposes minute-precision assistant reply times after you manually open that reply's
 native More-actions menu. User prompt times, dates written inside Gemini answers, and private response
 timestamp fields are not inferred to be message timestamps.
+
+Historical ChatGPT `unknown` records are not automatically assigned to the current login; recapturing after
+identification may create a separate copy. Existing text, attachments, importance, permissions and manual labels
+are retained. The unidentified group does not take the current display name, and temporary loss of identity
+evidence does not move an identified record into that group.
 
 Website layouts and rendering change. Complete archiving cannot be guaranteed for every renderer,
 interactive component, branch, or attachment. Identity or completeness failures remain failed or pending,

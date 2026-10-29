@@ -127,11 +127,13 @@ export type RuntimeRequest =
       type: typeof RUNTIME_MESSAGE_TYPE.GET_SAVED_CONVERSATION
       platform: Platform
       conversationId: string
+      accountId?: string
     }
   | {
       type: typeof RUNTIME_MESSAGE_TYPE.HAS_SAVED_CONVERSATION
       platform: Platform
       conversationId: string
+      accountId?: string
     }
   | {
       type: typeof RUNTIME_MESSAGE_TYPE.SEARCH_CONVERSATIONS

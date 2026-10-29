@@ -22,6 +22,7 @@ interface Job {
   lastHeartbeatAt?: number
   captureNavigated?: boolean
   sourceContext?: { capture: ExtractedConversation; accountId: string; token: string; revision: number; accountContext: string }
+  accountId?: string
 }
 const jobs = new Map<number, Job>()
 const platformOf = (job: Job): 'chatgpt' | 'gemini' => job.status.platform ?? 'chatgpt'
@@ -58,6 +59,14 @@ async function geminiSourceContext(sender: chrome.runtime.MessageSender): Promis
   const capture = context?.capture
   if (context?.contentScriptBuildId !== EXTENSION_BUILD_ID || !capture || capture.platform !== 'gemini' || !validMessages(capture.messages) || capture.messages.length % 2 !== 0 || capture.messages.some((message, index) => message.role !== (index % 2 ? 'assistant' : 'user')) || !capture.accountIdentifier || capture.conversationId !== getGeminiSourceId(capture.url) || state?.platform !== 'gemini' || state.contentScriptBuildId !== EXTENSION_BUILD_ID || state.conversationId !== capture.conversationId || !state.documentToken || !Number.isSafeInteger(state.branchRevision) || !state.accountContext || state.accountContext !== getGeminiAccountContext(capture.url) || state.accountContext !== getGeminiAccountContext(state.url) || state.blockers.some((blocker) => ['editing', 'generating'].includes(blocker)) || JSON.stringify(capture).length > 12_000_000) throw new Error('Gemini 原页、账号或回答状态无法核对，请等待页面稳定后重试')
   return { capture: portableGeminiDomCapture(capture), accountId: await createAccountId('gemini', capture.accountIdentifier), token: state.documentToken, revision: state.branchRevision, accountContext: state.accountContext }
+}
+
+async function chatgptSourceAccount(sender: chrome.runtime.MessageSender): Promise<string | null> {
+  if (sender.tab?.id === undefined) return null
+  const context = await chrome.tabs.sendMessage(sender.tab.id, { type: SHARE_SOURCE_CONTEXT_REQUEST },
+    sender.documentId ? { documentId: sender.documentId } : { frameId: 0 }) as { platform?: string; accountIdentifier?: string | null; contentScriptBuildId?: string } | null
+  if (context?.platform !== 'chatgpt' || context.contentScriptBuildId !== EXTENSION_BUILD_ID || context.accountIdentifier !== undefined && context.accountIdentifier !== null && typeof context.accountIdentifier !== 'string') return null
+  return createAccountId('chatgpt', context.accountIdentifier ?? null)
 }
 
 async function notifyCapturePage(job: Job): Promise<void> {
@@ -141,6 +150,8 @@ export async function handleShareCapture(request: Request, sender: chrome.runtim
     if (!sourceId || sourceId !== request.conversationId) throw new Error('原对话身份核对失败，请刷新原对话后重新启动采集')
     if (!validMessages(request.sourceMessages)) throw new Error('原对话没有有效的核对消息，或内容超出采集容量，请等待提问和回答显示后重试')
     const sourceContext = platform === 'gemini' ? await geminiSourceContext(sender) : undefined
+    const accountId = sourceContext?.accountId ?? await chatgptSourceAccount(sender)
+    if (accountId === null) throw new Error('原对话账号无法核对，请刷新后重试')
     if (sourceContext && sourceContext.capture.conversationId !== sourceId) throw new Error('Gemini 原对话已切换')
     // The explicit start action authorizes this task. The Manager setting is
     // only a default; a conversation panel may independently select sharing.
@@ -150,7 +161,7 @@ export async function handleShareCapture(request: Request, sender: chrome.runtim
     if (active.length >= 3) throw new Error('请等待其他分享采集结束后重试')
     const job: Job = {
       status: { platform, id: crypto.randomUUID(), originTabId: tabId, captureTabId: null, conversationId: sourceId, phase: 'loading', messageCount: 0, progress: 3, message: '正在打开分享采集页…', updatedAt: Date.now() },
-      url, sourceMessages: sourceContext?.capture.messages ?? request.sourceMessages, sourceContext, originDocumentId: sender.documentId, lastHeartbeatAt: Date.now(),
+      url, accountId, sourceMessages: sourceContext?.capture.messages ?? request.sourceMessages, sourceContext, originDocumentId: sender.documentId, lastHeartbeatAt: Date.now(),
     }
     jobs.set(tabId, job)
     try {
@@ -201,7 +212,7 @@ export async function handleShareCapture(request: Request, sender: chrome.runtim
     if (request.error || !capture || capture.platform !== platform || normalizeShare(capture.url, platform) !== job.url || capture.conversationId !== job.url?.split('/').at(-1) || capture.captureComplete !== true || !validMessages(capture.messages) || !validMessageOrder(capture) || capture.messages[0]?.role !== 'user' || (capture.attachmentCandidates?.length ?? 0) > 100 || JSON.stringify(capture).length > 12_000_000 || platform === 'gemini' && (capture.messages.length % 2 !== 0 || capture.messages.some((message, index) => message.sourceOrder !== index || message.role !== (index % 2 ? 'assistant' : 'user')))) {
       await finishJob(job, 'failed', request.error ? request.error.slice(0, 400) : '分享页未通过完整性核对，未保存；请打开采集页重试或更新分享链接')
     } else {
-      const saved = await getSavedConversationBySource(platform, job.status.conversationId, job.sourceContext?.accountId)
+      const saved = await getSavedConversationBySource(platform, job.status.conversationId, job.accountId)
       if (platform === 'gemini' ? !hasGeminiDomHead(job.sourceMessages ?? [], capture.messages) : !findShareAnchor(job.sourceMessages ?? [], capture.messages) && !findShareAnchor(saved?.messages ?? [], capture.messages)) {
         await finishJob(job, 'failed', '分享内容与原对话无法核对，请确认链接属于这条完整对话并更新分享快照')
       } else {
@@ -267,6 +278,7 @@ export async function isShareSaveAuthorized(sender: chrome.runtime.MessageSender
   const job = sender.tab?.id === undefined ? undefined : jobs.get(sender.tab.id)
   if (!job || platformOf(job) !== platform || job.status.phase !== 'ready' || job.status.conversationId !== conversationId || job.originDocumentId && sender.documentId !== job.originDocumentId) return false
   const id = await currentSourceId(sender, platform)
+  if (platform === 'chatgpt' && (accountId !== job.accountId || await chatgptSourceAccount(sender).catch(() => null) !== job.accountId)) return false
   if (platform === 'gemini') {
     const current = await geminiSourceContext(sender).catch(() => null), initial = job.sourceContext
     if (!current || !initial || accountId !== initial.accountId || current.accountId !== initial.accountId || current.token !== initial.token || current.revision !== initial.revision || current.accountContext !== initial.accountContext || !hasGeminiDomHead(current.capture.messages.slice(-2), initial.capture.messages.slice(-2)) || !job.capture || !hasGeminiDomHead(current.capture.messages, job.capture.messages)) return false

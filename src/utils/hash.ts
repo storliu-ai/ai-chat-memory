@@ -4,6 +4,7 @@ import type {
   Platform,
 } from '../shared/models'
 import { stableSerialize } from './stable-serialize'
+import { CHATGPT_UNKNOWN_ACCOUNT_ID, normalizeChatGPTAccountEmail } from '../shared/chatgpt-account'
 
 export async function sha256Hex(value: string): Promise<string> {
   const bytes = new TextEncoder().encode(value)
@@ -21,13 +22,11 @@ export async function createAccountId(
   platform: Platform,
   identifier: string | null,
 ): Promise<string> {
-  // ChatGPT does not currently expose a stable account identifier in its
-  // rendered, logged-in DOM. Profile-button text and avatar alt text are UI
-  // labels (for example `PLUS` or `个人资料图片`) and can change without the
-  // signed-in account changing. Keep the historical single-account key so one
-  // ChatGPT login cannot split into multiple local accounts.
   if (platform === 'chatgpt') {
-    return 'unknown'
+    const email = normalizeChatGPTAccountEmail(identifier)
+    return email === null
+      ? CHATGPT_UNKNOWN_ACCOUNT_ID
+      : `chatgpt:email:${await sha256Hex(`chatgpt:email:${email}`)}`
   }
 
   if (identifier === null || normalizeAccountIdentifier(identifier) === '') {

@@ -34,6 +34,7 @@ const makeContainer = () => ({
 function createHarness({ onShareStatus = () => undefined, extractionMissing = false, renderedMessages = messages, savedSourceMissing = false, onSavedRead = () => undefined } = {}) {
   let container = makeContainer()
   let conversationId = 'conversation-a'
+  let accountIdentifier = null
   let resolveCollection
   const collection = new Promise((resolve) => { resolveCollection = resolve })
   let collectionCalls = 0
@@ -58,7 +59,7 @@ function createHarness({ onShareStatus = () => undefined, extractionMissing = fa
     extractConversation: () => extractionMissing ? null : ({ ...complete, conversationId, captureComplete: undefined }),
     getMessages: () => renderedMessages,
     getTitle: () => complete.title,
-    getAccountIdentifier: () => null,
+    getAccountIdentifier: () => accountIdentifier,
     getAccountLabel: () => 'Unknown',
     collectConversation: () => { collectionCalls += 1; return collection },
   }
@@ -84,7 +85,7 @@ function createHarness({ onShareStatus = () => undefined, extractionMissing = fa
     } },
     '../shared/runtime-messages': { RUNTIME_MESSAGE_TYPE: { SHARE_CAPTURE: 'SHARE_CAPTURE', GET_SAVED_CONVERSATION: 'GET_SAVED_CONVERSATION' } },
     '../shared/build-id': { EXTENSION_BUILD_ID: 'test-build' },
-    '../utils/hash': {},
+    '../utils/hash': { createAccountId: async () => 'unknown' },
     '../utils/logger': { Logger: { warn() {}, error() {} } },
     './attachment-capture': {},
     './auto-save-policy': {},
@@ -133,6 +134,7 @@ function createHarness({ onShareStatus = () => undefined, extractionMissing = fa
     savedRequests,
     runtimeRequests,
     resolveCollection,
+    switchAccount(value) { accountIdentifier = value },
     get collectionCalls() { return collectionCalls },
     replaceContainer() {
       container.isConnected = false
@@ -185,6 +187,14 @@ navigated.navigate('conversation-b')
 navigated.resolveCollection(navigated.complete)
 assert.equal((await staleSave).ok, false, 'A real navigation must cancel a manual save')
 assert.equal(navigated.savedRequests.length, 0)
+
+const changedAccount = createHarness()
+const oldAccountSave = changedAccount.observer.saveCurrentConversation('conversation-a')
+await Promise.resolve()
+changedAccount.switchAccount('bob@example.com')
+changedAccount.resolveCollection(changedAccount.complete)
+assert.equal((await oldAccountSave).ok, false, 'Changed account evidence invalidates a complete DOM collection')
+assert.equal(changedAccount.savedRequests.length, 0)
 
 const returned = createHarness()
 const oldCollection = returned.observer.collectCompleteConversation('conversation-a')

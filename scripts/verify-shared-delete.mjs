@@ -205,6 +205,8 @@ const db = {
   },
 }
 const deletionDb = load('src/db/conversation-exclusions.ts', {
+  '../utils/hash': { createConversationId: async () => targetId },
+  '../shared/chatgpt-account': { CHATGPT_UNKNOWN_ACCOUNT_ID: 'unknown' },
   './database': {
     STORE_NAME: { CONVERSATIONS: 'conversations', CONVERSATION_EXCLUSIONS: 'conversationExclusions', ENVIRONMENT: 'environment' },
     openDatabase: async () => db,

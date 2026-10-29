@@ -1,6 +1,7 @@
 import { getAllAccounts } from '../db/accounts'
 import { getAllConversations } from '../db/conversations'
 import { isLegacyChatGPTProfileLabel } from '../shared/account-labels'
+import { CHATGPT_UNKNOWN_ACCOUNT_ID, CHATGPT_UNKNOWN_ACCOUNT_LABEL } from '../shared/chatgpt-account'
 import {
   openDatabase,
   requestToPromise,
@@ -131,17 +132,18 @@ export function validateAccount(value: unknown, index: number): Account {
     throw new ImportValidationError(`Account ${index + 1} has an invalid structure`)
   }
 
-  const label = value.platform === 'chatgpt' &&
+  const unknownChatGPT = value.platform === 'chatgpt' && value.id === CHATGPT_UNKNOWN_ACCOUNT_ID && value.source !== 'manual'
+  const label = unknownChatGPT ? CHATGPT_UNKNOWN_ACCOUNT_LABEL : value.platform === 'chatgpt' &&
     value.source !== 'manual' &&
     isLegacyChatGPTProfileLabel(value.label)
     ? 'Unknown'
     : value.label
-  const source = label === 'Unknown' && label !== value.label
+  const source = unknownChatGPT || label === 'Unknown' && label !== value.label
     ? 'unknown'
     : value.source
 
   return {
-    id: value.platform === 'chatgpt' ? 'unknown' : value.id,
+    id: value.id,
     platform: value.platform,
     label,
     source,
@@ -233,7 +235,7 @@ export async function validateConversation(
     throw new ImportValidationError(`Conversation ${index + 1} has an invalid content hash`)
   }
 
-  const accountId = value.platform === 'chatgpt' ? 'unknown' : value.accountId
+  const accountId = value.accountId
   const id = await createConversationId(value.platform, accountId, value.conversationId)
   return {
     id,
@@ -331,7 +333,9 @@ export async function importAllData(value: unknown): Promise<ImportResult> {
   const knownAccounts = new Map(existingAccounts.map((account) => [account.id, account]))
   incoming.accounts.forEach((account) => knownAccounts.set(account.id, account))
   for (const conversation of incoming.conversations) {
-    if (knownAccounts.has(conversation.accountId)) {
+    const known = knownAccounts.get(conversation.accountId)
+    if (known && known.platform !== conversation.platform) throw new ImportValidationError('Conversation account platform mismatch')
+    if (known !== undefined) {
       continue
     }
     if (
@@ -345,7 +349,7 @@ export async function importAllData(value: unknown): Promise<ImportResult> {
     const unknownAccount: Account = {
       id: conversation.accountId,
       platform: conversation.platform,
-      label: 'Unknown',
+      label: conversation.platform === 'chatgpt' ? CHATGPT_UNKNOWN_ACCOUNT_LABEL : 'Unknown',
       source: 'unknown',
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt,

@@ -196,7 +196,7 @@ const removed = observerModule.testMerge(snapshot([{ ...candidate, renderedDataU
 assert.equal(removed.attachmentCandidates, undefined, 'An authoritative empty attachment list must still remove stale candidates')
 
 const observer = new observerModule.ConversationObserver()
-observer.adapter = { platform: 'chatgpt', getConversationId: () => 'conversation-fixture' }
+observer.adapter = { platform: 'chatgpt', getConversationId: () => 'conversation-fixture', getAccountIdentifier: () => null }
 observer.isCaptureCurrent = () => true
 observer.ensureCaptureRuntimeReady = async () => true
 observer.hasCurrentPinnedEvidence = () => false

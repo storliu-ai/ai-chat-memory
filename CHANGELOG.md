@@ -9,6 +9,34 @@ Entries start at 0.5.68 using changes and build verification from the current ma
 session. Earlier dates and complete history have not been reconstructed. Dates identify
 local changes, not public release dates.
 
+## 0.5.79 — 2026-10-29
+
+- 优化中英文 README 的产品定位、功能关键词及安装导航，补充本地归档流程图。
+- 区分已构建的扩展安装包与 GitHub 源码 ZIP，保留当前对话、置顶收录及长对话采集限制。
+- Improve bilingual README positioning, feature keywords and installation navigation, with a local archive flow diagram.
+- Distinguish built extension packages from GitHub source ZIPs while preserving current-conversation, pinned-only and long-conversation capture limits.
+
+## 0.5.78 — 2026-10-29
+
+- 在代理规范中要求每次 Git 提交前检查实际暂存内容及提交元数据，并执行隐私扫描；禁止提交或上传隐私数据及绕过检查。
+- Require privacy scanning and manual review of staged content and commit metadata before every Git commit; prohibit committing/uploading private data or bypassing checks.
+
+## 0.5.77 — 2026-10-28
+
+- ChatGPT 仅使用账号控件明确提供的邮箱生成独立账号键，侧栏姓名仅作标签；缺少或冲突的邮箱进入未识别分组。
+- 保存、查询、置顶、分享及接口采集绑定账号，取消启动及导入时的全账号合并；历史记录、附件、权限、排除和手动标签保守保留。
+- 补充合成账号切换、重名、改名、身份消失及导入回归验证，同步架构、双语说明和隐私政策。
+- Derive separate ChatGPT account keys only from explicit profile email evidence; display names remain labels and missing/conflicting evidence stays unassigned.
+- Scope saves, lookups, pins and capture tasks by account; remove startup/import account collapsing while retaining historical data and user metadata.
+- Add synthetic account isolation/import verification and update architecture, bilingual guides and privacy disclosures.
+
+## 0.5.76 — 2026-10-28
+
+- 修正 ChatGPT 账号说明及代码注释：已支持显示名称识别，存储仍统一使用历史 `unknown` 键。
+- 明确同一浏览器配置文件切换 ChatGPT 账号不会分组隔离，自动标签可能变化；本次未更改存储行为。
+- Corrected ChatGPT account documentation and comments: display-name detection is implemented while storage retains the legacy `unknown` key.
+- Documented the shared account group and changing detected label when switching ChatGPT logins within one browser profile; storage behavior is unchanged.
+
 ## 0.5.75 — 2026-10-28
 
 - 补齐 Gemini 分享页 DOM 采集及四种侧边栏选项，不使用调试器、不刷新原对话。

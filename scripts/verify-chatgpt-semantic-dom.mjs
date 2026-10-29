@@ -154,7 +154,7 @@ const profileRow = (name = 'Fixture Account', plan = 'Plus') => `<aside><div cla
 const profile = harness(`<html><body>${profileRow()}<main>${transcript(turn(0))}</main></body></html>`, 'https://chatgpt.com/c/conversation-a')
 const profileAdapter = new (profile.load('src/adapters/chatgpt/chatgpt-adapter.ts').ChatGPTAdapter)()
 assert.equal(profileAdapter.getAccountLabel(), 'Fixture Account')
-assert.equal(profileAdapter.extractConversation().accountIdentifier, 'Fixture Account')
+assert.equal(profileAdapter.extractConversation().accountIdentifier, null, 'A sidebar name is a label, not a reliable account identifier')
 profile.document.querySelector('.text-secondary').textContent = 'Free'
 assert.equal(profileAdapter.getAccountLabel(), 'Fixture Account', 'Subscription and upgrade labels are never account names')
 for (const invalid of [

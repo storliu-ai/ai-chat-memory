@@ -731,8 +731,8 @@ export function deleteSharedConversation(
     if (environment === null || environment.id !== environmentId) {
       throw new Error('Shared environment identity mismatch')
     }
-    // Retain physical filenames: legacy ChatGPT account IDs can normalize to
-    // one displayed conversation stored in several differently named files.
+    // Retain physical filenames when a legacy file uses a noncanonical local
+    // conversation ID. Account IDs remain distinct during normalization.
     const matchingFiles = new Map<string, string[]>()
     await readConversations(directory, matchingFiles)
     const files = matchingFiles.get(conversationId) ?? []

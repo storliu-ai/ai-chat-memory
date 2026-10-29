@@ -16,7 +16,7 @@
 
 对话数据：当前打开对话的标题、正文、角色、原页面地址、平台、对话与消息标识、顺序，以及页面真正暴露的消息时间。仅在相关设置或明确采集操作允许时保存；不遍历账号的远程历史列表。
 
-账户与本地管理数据：页面显示的名称、可能显示的 Gemini 邮箱或账户槽位、用户手动填写的标签、重要标记、置顶证据、排除记录和附件权限，用于区分和管理本地记录，不用于身份画像或广告。
+账户与本地管理数据：页面显示的名称、ChatGPT 账号控件明确提供的邮箱、可能显示的 Gemini 邮箱或账户槽位、用户手动填写的标签、重要标记、置顶证据、排除记录和附件权限，用于区分和管理本地记录，不用于身份画像或广告。ChatGPT 仅在账号控件提供唯一邮箱时用其规范化哈希独立分组；没有可靠依据时保留未识别分组，不按姓名猜测身份或将历史未识别记录自动归给当前账号。邮箱也可能作为本地账户标签保留。
 
 附件数据：对话中渲染的图片、文件名、类型、大小、保存状态，以及在权限和大小限制内保存的文件副本。你手动选择的同名本地文件，仅用于补齐相应已有附件，不扫描电脑上的其他文件。
 
@@ -112,7 +112,7 @@ This is an independent project with no official affiliation with OpenAI, Google,
 
 Conversation data: the open conversation's title, text, roles, source URL, platform, conversation/message identifiers, ordering, and genuine message times exposed by the page. Data is saved only when the relevant settings or an explicit capture action permit it; remote account history is not enumerated.
 
-Account and local management data: displayed names, a displayed Gemini email address or account slot where available, manually entered labels, importance, native pin evidence, exclusions, and attachment permissions. These distinguish and manage local records, not advertising profiles.
+Account and local management data: displayed names, an email explicitly exposed by the ChatGPT profile control, a displayed Gemini email address or account slot where available, manually entered labels, importance, native pin evidence, exclusions, and attachment permissions. These distinguish and manage local records, not advertising profiles. ChatGPT creates a separate group only from a normalized hash of one unambiguous profile email. Without reliable evidence it retains an unidentified group, without inferring identity from names or automatically assigning historical unidentified records to the current login. An email may also remain as a local account label.
 
 Attachment data: rendered conversation images, filenames, types, sizes, save status, and file copies within permission and size limits. A same-named local file that you explicitly select is used only to supplement its existing attachment; other files on your computer are not scanned.
 

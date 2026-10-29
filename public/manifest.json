@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI Chat Memory",
-  "version": "0.5.75",
+  "version": "0.5.79",
   "description": "自动保存并管理你浏览过的 ChatGPT、Gemini 和 DeepSeek 对话，所有数据仅保存在本机。",
   "minimum_chrome_version": "118",
   "permissions": ["debugger"],

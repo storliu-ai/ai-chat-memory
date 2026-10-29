@@ -19,6 +19,8 @@ export const PANEL_MESSAGE_TYPE = {
 export interface HostConversationContext {
   platform: Platform | null
   conversationId: string | null
+  /** Transient rendered identity; never included in iframe URLs or persisted. */
+  accountIdentifier?: string | null
 }
 
 export type ConversationSyncStatus =
@@ -119,6 +121,8 @@ function isHostConversationContext(value: unknown): value is HostConversationCon
       SUPPORTED_PLATFORMS.includes(platform as Platform))
   return (
     validPlatform &&
+    (value.accountIdentifier === undefined || value.accountIdentifier === null ||
+      typeof value.accountIdentifier === 'string' && value.accountIdentifier.length <= 254) &&
     (conversationId === null ||
       (typeof conversationId === 'string' && conversationId !== '')) &&
     ((platform === null && conversationId === null) ||

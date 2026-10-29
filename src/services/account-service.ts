@@ -1,5 +1,6 @@
 import { getAccount, getAllAccounts, putAccount } from '../db/accounts'
 import { sanitizeChatGPTAccountLabel } from '../shared/account-labels'
+import { CHATGPT_UNKNOWN_ACCOUNT_ID, CHATGPT_UNKNOWN_ACCOUNT_LABEL } from '../shared/chatgpt-account'
 import type {
   Account,
   ConversationSavePayload,
@@ -10,6 +11,9 @@ import { NotFoundError } from './errors'
 export async function ensureConversationAccount(
   payload: ConversationSavePayload,
 ): Promise<Account> {
+  if (payload.platform === 'chatgpt' && payload.accountId === CHATGPT_UNKNOWN_ACCOUNT_ID) {
+    payload = { ...payload, accountLabel: CHATGPT_UNKNOWN_ACCOUNT_LABEL, accountSource: 'unknown' }
+  }
   const existing = await getAccount(payload.accountId)
   const now = Date.now()
 
@@ -60,6 +64,7 @@ export async function syncDetectedAccountLabel(
   label: string,
 ): Promise<Account | null> {
   const existing = await getAccount(accountId)
+  if (platform === 'chatgpt' && accountId === CHATGPT_UNKNOWN_ACCOUNT_ID) return existing
   if (existing === null || existing.platform !== platform || existing.source === 'manual') {
     return existing
   }

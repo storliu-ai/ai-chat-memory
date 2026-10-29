@@ -1,7 +1,7 @@
 {
   "name": "ai-chat-memory",
   "private": true,
-  "version": "0.5.75",
+  "version": "0.5.79",
   "license": "GPL-3.0-only",
   "type": "module",
   "scripts": {
@@ -41,6 +41,7 @@
     "verify:exclusions": "node scripts/verify-exclusions.mjs",
     "verify:shared-delete": "node scripts/verify-shared-delete.mjs",
     "verify:attachments": "node scripts/verify-attachments-and-account.mjs",
+    "verify:accounts": "node scripts/verify-chatgpt-accounts.mjs",
     "verify:image-recapture": "node scripts/verify-image-recapture.mjs",
     "verify:local-attachments": "node scripts/verify-local-attachments.mjs",
     "verify:text-preview": "node scripts/verify-text-preview.mjs",

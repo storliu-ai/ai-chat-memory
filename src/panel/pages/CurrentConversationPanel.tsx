@@ -188,7 +188,7 @@ export function CurrentConversationPanel() {
     void poll()
     chrome.runtime.onMessage.addListener(listener)
     return () => { disposed = true; if (timer !== undefined) window.clearTimeout(timer); chrome.runtime.onMessage.removeListener(listener) }
-  }, [context.platform, context.conversationId, networkActive, networkPlatform, supportsNetwork])
+  }, [context.platform, context.conversationId, context.accountIdentifier, networkActive, networkPlatform, supportsNetwork])
   useEffect(() => {
     if (!supportsNetwork || !context.conversationId) return
     let disposed = false
@@ -227,7 +227,8 @@ export function CurrentConversationPanel() {
   const [liveState, setLiveState] = useState<HostConversationLiveState | null>(null)
   const currentLiveState =
     liveState?.context.platform === context.platform &&
-    liveState.context.conversationId === context.conversationId
+    liveState.context.conversationId === context.conversationId &&
+    liveState.context.accountIdentifier === context.accountIdentifier
       ? liveState
       : null
   const currentSyncStatus = currentLiveState?.syncStatus ?? null
@@ -235,7 +236,7 @@ export function CurrentConversationPanel() {
     currentSyncStatus === 'pending' || currentSyncStatus === 'saving'
 
   useEffect(() => subscribeHostConversationContext((nextContext) => {
-    if (nextContext.platform === contextRef.current.platform && nextContext.conversationId === contextRef.current.conversationId) return
+    if (nextContext.platform === contextRef.current.platform && nextContext.conversationId === contextRef.current.conversationId && nextContext.accountIdentifier === contextRef.current.accountIdentifier) return
     contextRef.current = nextContext
     manualOperation.current += 1
     captureModeRevision.current += 1
@@ -291,11 +292,18 @@ export function CurrentConversationPanel() {
         setLoading(false)
         return
       }
+      // URL context arrives before the host-frame handshake.
+      // Wait for its explicit identity (including null) before reading a group.
+      if (context.accountIdentifier === undefined) {
+        setConversation(null)
+        setLoading(true)
+        return
+      }
       const modeRevision = captureModeRevision.current
       const methodRevision = saveMethodRevision.current
       const linkRevision = shareUrlRevision.current
       void Promise.all([
-        getSavedConversation(context.platform, context.conversationId),
+        getSavedConversation(context.platform, context.conversationId, context.accountIdentifier),
         getSettings(),
         supportsNetwork ? getConversationCaptureMode(context.conversationId, networkPlatform) : Promise.resolve(null),
         supportsNetwork ? getConversationShareLink(context.conversationId, networkPlatform) : Promise.resolve(null),
@@ -490,6 +498,7 @@ export function CurrentConversationPanel() {
       const refreshed = await getSavedConversation(
         context.platform,
         context.conversationId,
+        context.accountIdentifier,
       )
       if (operation !== manualOperation.current) return
       if (refreshed === null) {

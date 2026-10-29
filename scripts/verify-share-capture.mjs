@@ -13,6 +13,7 @@ function load(path, dependencies = {}, globals = {}) {
     if (name.includes('/gemini/')) return verificationModule(`src/adapters/gemini/${name.split('/').at(-1)}.ts`, globals)
     if (name === '../utils/hash') return verificationModule('src/utils/hash.ts')
     if (name === '../shared/network-capture') return verificationModule('src/shared/network-capture.ts')
+    if (name.endsWith('/shared/chatgpt-account')) return verificationModule('src/shared/chatgpt-account.ts')
     assert.ok(name in dependencies, `Unexpected dependency ${name}`)
     return dependencies[name]
   } }, { filename: path })
@@ -408,7 +409,7 @@ await assert.rejects(() => harness.api.handleShareCapture({ action: 'claim' }, {
 await harness.api.handleShareCapture({ action: 'claim' }, captureSender)
 await assert.rejects(() => harness.api.handleShareCapture({ action: 'finish', jobId, capture }, { ...captureSender, url: otherUrl }), /授权/)
 await harness.api.handleShareCapture({ action: 'finish', jobId, capture }, captureSender)
-assert.equal(await harness.api.isShareSaveAuthorized(sender, 'conversation-a'), true)
+assert.equal(await harness.api.isShareSaveAuthorized(sender, 'conversation-a', 'chatgpt', 'unknown'), true)
 assert.equal(await harness.api.isShareSaveAuthorized({ ...sender, documentId: 'different-document' }, 'conversation-a'), false)
 assert.equal(harness.notifications.at(-1).phase, 'ready', 'The capture page learns that scrolling has finished and saving has begun')
 assert.equal((await harness.api.handleShareCapture({ action: 'status', conversationId: 'conversation-a' }, panelSender)).capture, undefined, 'The overlay receives progress, not the full public transcript')
@@ -454,7 +455,7 @@ const pairedCapture = { ...capture,
 await pairedThought.api.handleShareCapture({ action: 'finish', jobId: pairedJob.status.id, capture: pairedCapture }, pairedSender)
 assert.equal(pairedThought.records.get(1).phase, 'ready', 'The worker must accept 15 messages covering 16 paired slots with one independently verified thought-only slot')
 assert.equal(pairedThought.records.get(1).messageCount, 15)
-assert.equal(await pairedThought.api.isShareSaveAuthorized(sender, 'conversation-a'), true)
+assert.equal(await pairedThought.api.isShareSaveAuthorized(sender, 'conversation-a', 'chatgpt', 'unknown'), true)
 const deletionJob = await deleted.api.handleShareCapture(start, sender)
 const deletionSender = { ...captureSender, tab: { id: deletionJob.status.captureTabId } }
 await deleted.api.handleShareCapture({ action: 'claim' }, deletionSender)
@@ -483,7 +484,7 @@ assert.equal(spa.removed.length, 0, 'A rendering pause must keep the same captur
 await spa.api.handleShareCapture({ action: 'progress', jobId: spaJob.status.id, phase: 'scanning', messageCount: 12, progress: 65 }, spaCaptureSender)
 assert.equal(spa.records.get(1).phase, 'scanning', 'Progress resumes without starting another job')
 await spa.api.handleShareCapture({ action: 'finish', jobId: spaJob.status.id, capture }, spaCaptureSender)
-assert.equal(await spa.api.isShareSaveAuthorized(staleSender, 'conversation-a'), true)
+assert.equal(await spa.api.isShareSaveAuthorized(staleSender, 'conversation-a', 'chatgpt', 'unknown'), true)
 assert.equal((await spa.api.handleShareCapture({ action: 'status', jobId: spaJob.status.id }, spaCaptureSender)).capture, undefined)
 await spa.api.handleShareCapture({ action: 'release', conversationId: 'conversation-a', jobId: spaJob.status.id, error: 'Synthetic storage error' }, staleSender)
 assert.equal(spa.records.get(1).phase, 'failed')
@@ -566,7 +567,7 @@ async function saveScannedShare(storageFailure = false, filePolicy = null) {
         return response
       }
       if (request.type === 'SAVE_CONVERSATION') {
-        assert.equal(await task.api.isShareSaveAuthorized(staleSender, request.conversation.conversationId), true)
+        assert.equal(await task.api.isShareSaveAuthorized(staleSender, request.conversation.conversationId, 'chatgpt', request.conversation.accountId), true)
         assert.equal(request.saveMode, 'manual')
         assert.equal(request.conversation.supplementOnly, true)
         if (storageFailure) throw new Error('Synthetic IndexedDB write failure')

@@ -9,6 +9,8 @@ import {
   STORE_NAME,
   transactionToPromise,
 } from './database'
+import { createConversationId } from '../utils/hash'
+import { CHATGPT_UNKNOWN_ACCOUNT_ID } from '../shared/chatgpt-account'
 
 function createExclusion(conversation: Conversation): ConversationExclusion {
   return {
@@ -25,6 +27,12 @@ export async function putConversationWithExclusionPolicy(
   conversation: Conversation,
   saveMode: ConversationSaveMode,
 ): Promise<Conversation | null> {
+  // An old unknown-account exclusion cannot be attributed to a login. Retain
+  // its conservative automatic-insertion block. Once explicitly restored, an
+  // identified record may update without reassigning the historical tombstone.
+  const legacyExclusionId = conversation.platform === 'chatgpt' && conversation.accountId !== CHATGPT_UNKNOWN_ACCOUNT_ID
+    ? await createConversationId('chatgpt', CHATGPT_UNKNOWN_ACCOUNT_ID, conversation.conversationId)
+    : conversation.id
   const database = await openDatabase()
   try {
     const transaction = database.transaction(
@@ -39,8 +47,14 @@ export async function putConversationWithExclusionPolicy(
     const exclusion = await requestToPromise<ConversationExclusion | undefined>(
       exclusionStore.get(conversation.id),
     )
+    const legacyExclusion = saveMode === 'automatic' && legacyExclusionId !== conversation.id
+      ? await requestToPromise<ConversationExclusion | undefined>(exclusionStore.get(legacyExclusionId))
+      : undefined
+    const existing = legacyExclusion !== undefined
+      ? await requestToPromise<Conversation | undefined>(conversationStore.get(conversation.id))
+      : undefined
 
-    if (exclusion !== undefined && saveMode === 'automatic') {
+    if ((exclusion !== undefined || legacyExclusion !== undefined && existing === undefined) && saveMode === 'automatic') {
       await completion
       return null
     }

@@ -20,6 +20,7 @@ import type {
   DisplayColorAssignments,
 } from '../../shared/display-colors'
 import { sendRuntimeRequest } from '../../shared/runtime-client'
+import { createAccountId } from '../../utils/hash'
 import { RUNTIME_MESSAGE_TYPE } from '../../shared/runtime-messages'
 import { EXTENSION_BUILD_ID } from '../../shared/build-id'
 import type { ChatGPTCaptureMode, ShareCaptureResponse } from '../../shared/share-capture'
@@ -83,14 +84,16 @@ export function supplementConversationAttachment(id: string, attachmentId: strin
   return sendRuntimeRequest({ type: RUNTIME_MESSAGE_TYPE.SUPPLEMENT_LOCAL_ATTACHMENT, id, attachmentId, file })
 }
 
-export function getSavedConversation(
+export async function getSavedConversation(
   platform: Platform,
   conversationId: string,
+  accountIdentifier: string | null = null,
 ): Promise<Conversation | null> {
   return sendRuntimeRequest({
     type: RUNTIME_MESSAGE_TYPE.GET_SAVED_CONVERSATION,
     platform,
     conversationId,
+    accountId: await createAccountId(platform, accountIdentifier),
   })
 }
 

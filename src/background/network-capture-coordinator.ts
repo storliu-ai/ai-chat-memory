@@ -60,7 +60,7 @@ function activeJob(conversationId: string, platform = 'chatgpt'): Job | undefine
 }
 
 /** The lock is conservative across local accounts with the same source ID.
- * Gemini persistence separately rechecks the originating rendered account. */
+ * Persistence separately rechecks the originating rendered account. */
 export function isNetworkSavePaused(platform: string, conversationId: string): boolean {
   return !!activeJob(conversationId, platform)
 }
@@ -142,7 +142,9 @@ async function finish(job: Job, phase: 'verified' | 'complete' | 'partial' | 'fa
 async function reviewAuthorized(job: Job): Promise<boolean> {
   if (job.finishing || job.status.phase !== 'awaiting-confirmation' || !(await getCaptureReadiness(EXTENSION_BUILD_ID)).ready) return false
   const current = await probe(job.status.originTabId, undefined, job.sourceToken, job.sourceDocumentId).catch(() => null)
-  return !!current && validSource(job, current) && !current.blockers.some((blocker) => ['generating', 'editing'].includes(blocker)) && !job.finishing
+  if (!current || !validSource(job, current) || current.blockers.some((blocker) => ['generating', 'editing'].includes(blocker))) return false
+  const source = await readContext(job.status.originTabId, job.sourceToken, job.sourceDocumentId).catch(() => null)
+  return !!source && source.platform === jobPlatform(job) && await createAccountId(source.platform, source.accountIdentifier) === job.accountId && !job.finishing
 }
 
 /** Only normalized text stays in memory while the owner decides. Identity and
@@ -174,7 +176,7 @@ async function failOrReview(job: Job, message: string, capture?: ExtractedConver
     const firstUser = messages.findIndex((entry) => entry.role === 'user')
     if (firstUser < 0) throw new Error('没有可保存的用户消息')
     messages = messages.slice(firstUser)
-    const existing = await getSavedConversationBySource('chatgpt', job.status.conversationId)
+    const existing = await getSavedConversationBySource('chatgpt', job.status.conversationId, job.accountId)
     if (job.status.mode === 'share' && ![source.messages, job.source?.messages ?? [], existing?.messages ?? []].some((entries) => findShareAnchor(entries, messages!, candidateSource === 'network'))) throw new Error('分享内容缺少原对话唯一锚点')
     if (!await reviewAuthorized(job)) throw new Error('确认保存授权已撤销')
     messages = messages.map((entry) => {
@@ -186,7 +188,7 @@ async function failOrReview(job: Job, message: string, capture?: ExtractedConver
     })
     const issue = { reason: message.slice(0, 300), source: candidateSource } as const
     job.review = { issue, payload: {
-      platform: 'chatgpt', accountId: 'unknown', accountLabel: source.accountLabel, accountSource: source.accountIdentifier ? 'detected' : 'unknown',
+      platform: 'chatgpt', accountId: job.accountId ?? 'unknown', accountLabel: source.accountLabel, accountSource: source.accountIdentifier ? 'detected' : 'unknown',
       conversationId: job.status.conversationId, url: `https://chatgpt.com/c/${job.status.conversationId}`, title: source.title,
       messages, pinned: existing?.pinned ?? false, contentHash: await createContentHash(source.title, messages),
     } }
@@ -324,9 +326,9 @@ async function authorized(job: Job): Promise<boolean> {
   if (!(await getCaptureReadiness(EXTENSION_BUILD_ID)).ready) return false
   const state = await probe(job.status.originTabId, undefined, job.sourceToken, job.sourceDocumentId).catch(() => null)
   if (!state || !validSource(job, state) || state.blockers.some((blocker) => ['generating', 'editing'].includes(blocker)) || job.finishing) return false
-  if (jobPlatform(job) === 'gemini') {
+  if (job.status.operation === 'save') {
     const context = await readContext(job.status.originTabId, job.sourceToken, job.sourceDocumentId).catch(() => null)
-    if (!context || context.platform !== 'gemini' || await createAccountId('gemini', context.accountIdentifier) !== job.accountId) return false
+    if (!context || context.platform !== jobPlatform(job) || await createAccountId(context.platform, context.accountIdentifier) !== job.accountId) return false
   }
   return !job.finishing
 }
@@ -545,8 +547,11 @@ export async function handleNetworkCapture(request: NetworkCaptureRequest, sende
   if (request.action === 'confirm') {
     if (!isPanel) throw new Error('请在发起页的插件面板确认保存')
     await job.preparingReview
-    if (!job.review || !await reviewAuthorized(job)) throw new Error('候选内容已失效，请重新采集')
-    const existing = await getSavedConversationBySource('chatgpt', job.status.conversationId)
+    if (!job.review || !await reviewAuthorized(job)) {
+      await finish(job, 'cancelled', '原对话账号、文档或分支已变化，候选内容已丢弃')
+      throw new Error('候选内容已失效，请重新采集')
+    }
+    const existing = await getSavedConversationBySource('chatgpt', job.status.conversationId, job.accountId)
     const saved = await savePendingNetworkConversation(job.review.payload, job.review.issue, () => reviewAuthorized(job))
     if (!saved) throw new Error('待补全保存未确认')
     if (job.finishing) {

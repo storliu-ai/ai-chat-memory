@@ -87,6 +87,19 @@ capture, persistence, or cross-context messaging.
   enabled with `npm run setup:git-hooks` after initializing Git. The owner must choose
   a repository-local public name and GitHub noreply email before committing; do not
   invent them, inherit a private global identity, or bypass the hook.
+- Before every `git commit`, run `npm run verify:secrets` and manually review the
+  actual staged content with `git diff --cached`, including added files, filenames,
+  binary attachments, the commit message and author metadata. Reviewing only the
+  working tree is insufficient; automated checks do not replace manual review.
+- Never commit, push, publish or otherwise upload private user data: real captured
+  conversations, account identifiers or personal email addresses, credentials,
+  tokens, cookies, private share links, browser/profile data, exports, screenshots,
+  logs or network captures containing private information. Use synthetic fixtures
+  or thoroughly redacted examples; keep private originals local and ignored.
+- If a privacy check fails or staged content is uncertain, remove or redact the
+  affected staged material while preserving the user's local originals, then
+  repeat automated and manual checks before committing. Never force-add private
+  files, disable the pre-commit hook or use `--no-verify` to bypass these checks.
 
 ## Change workflow
 

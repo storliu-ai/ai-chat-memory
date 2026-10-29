@@ -83,7 +83,9 @@ const progressComponent = load('src/panel/components/ShareCaptureProgress.tsx', 
 })
 const headerComponent = load('src/panel/components/Header.tsx', { 'react/jsx-runtime': { jsx, jsxs: jsx } })
 function panel(initialContext = { platform: 'chatgpt', conversationId: 'a' }) {
+  initialContext = { accountIdentifier: null, ...initialContext }
   const slots = [], effects = [], cleanups = []
+  const accountReads = []
   let index = 0, dirty = true, tree, contextListener, runtimeListener
   const hooks = {
     useState(initial) {
@@ -116,7 +118,7 @@ function panel(initialContext = { platform: 'chatgpt', conversationId: 'a' }) {
     '../../shared/network-capture': networkHelpers,
     '../../shared/share-capture': shareHelpers,
     '../services/panel-api': {
-      getSavedConversation: async () => savedConversation, getSettings: async () => ({ ...defaults }),
+      getSavedConversation: async (...args) => { accountReads.push(args); return savedConversation }, getSettings: async () => ({ ...defaults }),
       getConversationCaptureMode: async (id, platform) => {
         const mode = await preferences.getConversationCaptureMode(id, platform)
         if (pendingRead) await pendingRead
@@ -152,7 +154,7 @@ function panel(initialContext = { platform: 'chatgpt', conversationId: 'a' }) {
     return [node, ...(node.props?.children === undefined ? [] : nodes(node.props.children))]
   }
   return {
-    flush, nodes,
+    flush, nodes, accountReads,
     select: () => {
       const chosen = nodes().find((n) => n.props?.role === 'tab' && n.props['aria-selected'])
       return chosen ? { props: { value: chosen.props['data-capture-mode'], disabled: chosen.props.disabled } } : undefined
@@ -167,7 +169,7 @@ function panel(initialContext = { platform: 'chatgpt', conversationId: 'a' }) {
       const mode = nodes().find((n) => n.props?.role === 'tab' && n.props['aria-selected']).props['data-capture-mode']
       nodes().find((n) => n.props?.['data-save-method'] === value && n.props['data-capture-mode'] === mode).props.onClick()
     },
-    navigate: (platform, conversationId) => contextListener({ platform, conversationId }),
+    navigate: (platform, conversationId, accountIdentifier = null) => contextListener({ platform, conversationId, accountIdentifier }),
     save: () => nodes().find((n) => n.type === 'button' && n.props.className === 'controller-primary-button').props.onClick(),
     refresh: () => runtimeListener({}),
     dispose: () => cleanups.forEach((cleanup) => cleanup?.()),
@@ -378,7 +380,7 @@ await preferences.setConversationShareLink('a', null)
 assert.equal(await preferences.getConversationShareLink('a'), null)
 await assert.rejects(() => preferences.setConversationShareLink('a', 'https://example.test/share'), /链接格式/)
 networkStatus = null
-liveState = { context: { platform: 'chatgpt', conversationId: 'layout' }, pageTitle: 'Synthetic conversation title', pageMessageCount: 4,
+liveState = { context: { platform: 'chatgpt', conversationId: 'layout', accountIdentifier: null }, pageTitle: 'Synthetic conversation title', pageMessageCount: 4,
   recentMessages: [{ role: 'user', content: 'Recent question' }, { role: 'assistant', content: 'Recent answer' }], syncStatus: 'observing', pinnedEvidence: false, lastSyncedAt: null }
 current = panel(liveState.context)
 await current.flush()
@@ -420,4 +422,14 @@ assert.ok(current.nodes().some(node => node.type === 'span' && node.props.childr
 assert.ok(current.nodes().some(node => node.type === 'button' && node.props.children === '滑动采集并补全'))
 assert.ok(current.nodes().some(node => node.type === 'strong' && node.props.children === '这条对话待补全'))
 current.dispose(); savedConversation = null
+const waitingForIdentity = panel({ platform: 'chatgpt', conversationId: 'synthetic-identity', accountIdentifier: undefined })
+await waitingForIdentity.flush()
+assert.equal(waitingForIdentity.accountReads.length, 0, 'The iframe URL alone must not select the unknown account group')
+waitingForIdentity.navigate('chatgpt', 'synthetic-identity', 'alice@example.com')
+await waitingForIdentity.flush()
+assert.equal(waitingForIdentity.accountReads.at(-1)[2], 'alice@example.com')
+waitingForIdentity.navigate('chatgpt', 'synthetic-identity', 'bob@example.com')
+await waitingForIdentity.flush()
+assert.equal(waitingForIdentity.accountReads.at(-1)[2], 'bob@example.com', 'An account change on the same route refreshes the current record')
+waitingForIdentity.dispose()
 console.log('conversation capture mode verification passed: combined tabs, one capture action, independent defaults/preferences, DOM/network save routing and navigation')

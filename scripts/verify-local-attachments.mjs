@@ -19,7 +19,7 @@ function load(path, dependencies = {}, globals = {}, append = '') {
 const models = load('src/shared/models.ts')
 const attachments = load('src/shared/attachments.ts', { './models': models })
 const local = load('src/shared/local-attachments.ts', { './attachments': attachments })
-const hash = load('src/utils/hash.ts', { './stable-serialize': load('src/utils/stable-serialize.ts') })
+const hash = load('src/utils/hash.ts', { './stable-serialize': load('src/utils/stable-serialize.ts'), '../shared/chatgpt-account': load('src/shared/chatgpt-account.ts') })
 const errors = load('src/services/errors.ts')
 const fixture = () => ({ id: 'conversation-local', platform: 'chatgpt', accountId: 'unknown', conversationId: 'native-fixture',
   title: 'Fixture title', url: 'https://chatgpt.com/c/native-fixture', messages: [{ role: 'user', content: 'File question', sourceTurnId: 'user-1', attachmentNames: ['upload.txt'] }, { role: 'assistant', content: 'File answer', sourceTurnId: 'answer-1', sentAt: 60000, sentAtPrecision: 'minute' }],

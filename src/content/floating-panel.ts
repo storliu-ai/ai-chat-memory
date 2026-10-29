@@ -303,7 +303,7 @@ export function installFloatingPanel(
         return
       }
       const context = options.getConversationContext()
-      const contextKey = `${context.platform ?? ''}:${context.conversationId ?? ''}`
+      const contextKey = JSON.stringify([context.platform, context.conversationId, context.accountIdentifier ?? null])
       if (!force && contextKey === lastFrameContextKey) {
         return
       }
